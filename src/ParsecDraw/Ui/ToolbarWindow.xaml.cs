@@ -45,7 +45,7 @@ public partial class ToolbarWindow : Window
             ModeText.Text = "主机";
             DrawTools.Visibility = Visibility.Collapsed;
             BtnExitDraw.Visibility = Visibility.Collapsed;
-            HintText.Text = "覆盖层已点击穿透，不影响游戏。Ctrl+Alt+D 暂停/显示笔迹，Ctrl+Alt+P 钉住，Ctrl+Alt+C 清空";
+            HintText.Text = "覆盖层已点击穿透，不影响游戏。Ctrl+Alt+D 暂停/显示笔迹，Ctrl+Alt+P 钉住模式，Ctrl+Alt+C 清空";
             _overlay.Visibility = Visibility.Visible;
         }
         else
@@ -54,8 +54,21 @@ public partial class ToolbarWindow : Window
             BuildColorButtons();
             BuildWidthButtons();
             _overlay.DrawModeChanged += OnDrawModeChanged;
+            _session.PinModeChanged += OnPinModeChanged;
             UpdateModeUi(_overlay.DrawMode);
+            UpdatePinUi();
         }
+    }
+
+    // ---- 钉住模式（开关：开启后新笔迹持久存在） ----
+
+    private void OnPinModeChanged() => Dispatcher.BeginInvoke(UpdatePinUi);
+
+    private void UpdatePinUi()
+    {
+        BtnPin.Content = _session.PinMode ? "钉住:开" : "钉住:关";
+        BtnPin.BorderThickness = new Thickness(2);
+        BtnPin.BorderBrush = (Brush)FindResourceInternal(_session.PinMode ? "TbAccent" : "TbBorder");
     }
 
     // ---- 构建 ----
@@ -171,7 +184,7 @@ public partial class ToolbarWindow : Window
         BtnExitDraw.Visibility = Visibility.Visible;
         BtnExitDraw.Content = drawing ? "完成" : "开始绘画";
         HintText.Text = drawing
-            ? "Ctrl+Alt+D / 右键 = 退出绘画态（穿透回 Parsec）；Ctrl+Alt+P 钉住，Ctrl+Alt+C 清空，Ctrl+Z 撤销"
+            ? "Ctrl+Alt+D / 右键 = 退出绘画态（穿透回 Parsec）；Ctrl+Alt+P 钉住模式（开=新笔迹保留），Ctrl+Alt+C 清空，Ctrl+Z 撤销"
             : "当前穿透：鼠标直接操作 Parsec 窗口。Ctrl+Alt+D 或点\"开始绘画\"进入绘画态";
     }
 
@@ -206,7 +219,7 @@ public partial class ToolbarWindow : Window
 
     private void OnUndo(object sender, RoutedEventArgs e) => _session.UndoMine();
 
-    private void OnPin(object sender, RoutedEventArgs e) => _session.PinAll();
+    private void OnPin(object sender, RoutedEventArgs e) => _session.TogglePinMode();
 
     private void OnClear(object sender, RoutedEventArgs e) => _session.ClearAll();
 

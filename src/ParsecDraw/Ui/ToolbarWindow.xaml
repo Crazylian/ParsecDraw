@@ -33,7 +33,7 @@
                 </StackPanel>
 
                 <!-- 通用动作 -->
-                <Button x:Name="BtnPin" Content="钉住" Style="{StaticResource TbButton}" Margin="0,0,4,0" Click="OnPin" />
+                <Button x:Name="BtnPin" Content="钉住:关" Style="{StaticResource TbButton}" Margin="0,0,4,0" Click="OnPin" ToolTip="开启后新画的笔迹持久保留，关闭后恢复自动淡出（Ctrl+Alt+P）" />
                 <Button x:Name="BtnClear" Content="清空" Style="{StaticResource TbButton}" Margin="0,0,10,0" Click="OnClear" />
                 <Button x:Name="BtnToggle" Content="暂停" Style="{StaticResource TbButton}" Margin="0,0,4,0" Click="OnToggle" />
 

@@ -59,6 +59,7 @@ public partial class App : Application
                     IconSource = System.Windows.Media.Imaging.BitmapFrame.Create(
                         new Uri("pack://application:,,,/Assets/app.ico")),
                 };
+                smokeTray.ForceCreate(); // 与 ControlWindow 相同的真实路径
                 trayOk = smokeTray.IconSource is not null;
                 result.Add($"tray-ok={trayOk}");
             }

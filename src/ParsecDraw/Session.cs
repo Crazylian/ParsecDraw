@@ -33,6 +33,20 @@ public sealed class Session : IDisposable
     /// <summary>观众端渲染模式：false=只画自己的（默认，避免与 Parsec 流里重复）；true=渲染所有人。</summary>
     public bool ShowAllStrokes { get; set; }
 
+    /// <summary>钉住模式：开启后新画的笔迹持久存在（不淡出），关闭后恢复自动淡出。已画的不受影响。</summary>
+    public bool PinMode { get; set; }
+
+    /// <summary>钉住模式切换（工具栏同步指示用）。</summary>
+    public event Action? PinModeChanged;
+
+    /// <summary>切换钉住模式（热键/工具栏共用入口）。</summary>
+    public void TogglePinMode()
+    {
+        PinMode = !PinMode;
+        Status?.Invoke(PinMode ? "钉住模式已开启：新画的笔迹将保留" : "钉住模式已关闭：笔迹恢复自动淡出");
+        PinModeChanged?.Invoke();
+    }
+
     private DrawServer? _server;
     private DrawClient? _client;
     private Dispatcher _dispatcher = null!;
@@ -143,11 +157,11 @@ public sealed class Session : IDisposable
             FlushPoints(now);
     }
 
-    public void StrokeEnd(bool pin = false)
+    public void StrokeEnd(bool? pin = null)
     {
         if (_active is null) return;
         FlushPoints(Environment.TickCount64);
-        var m = new Msg { T = MsgTypes.End, Id = _active.Id, Pin = pin };
+        var m = new Msg { T = MsgTypes.End, Id = _active.Id, Pin = pin ?? PinMode };
         Store.Apply(m);
         Send(m);
         _active = null;
@@ -170,16 +184,6 @@ public sealed class Session : IDisposable
         var m = new Msg { T = MsgTypes.Undo, Id = last.Id };
         Store.Apply(m);
         Send(m);
-    }
-
-    /// <summary>钉住当前画面上所有已结束的笔迹。</summary>
-    public void PinAll()
-    {
-        if (!Active) return;
-        var m = new Msg { T = MsgTypes.Pin };
-        Store.Apply(m);
-        Send(m);
-        Status?.Invoke("已钉住当前笔迹");
     }
 
     public void ClearAll()

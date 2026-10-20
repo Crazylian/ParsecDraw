@@ -19,6 +19,10 @@ public partial class OverlayWindow : Window
     private const int HotkeyIdClear = 2;
     private const int HotkeyIdPin = 3;
 
+    /// <summary>绘画态画笔光标（tools/make_cursor.py 生成，热点=笔尖）。</summary>
+    private static readonly Cursor PenCursor = new(
+        Application.GetResourceStream(new Uri("pack://application:,,,/Assets/pen.cur"))!.Stream);
+
     private readonly Session _session;
     private readonly bool _isHost;
     private IntPtr _hwnd;
@@ -86,7 +90,7 @@ public partial class OverlayWindow : Window
         // 主机：恒穿透；观众：初始即绘画态（连上就想画）
         _drawMode = !_isHost;
         ApplyClickThrough();
-        Cursor = _drawMode ? Cursors.Cross : Cursors.Arrow;
+        Cursor = _drawMode ? PenCursor : Cursors.Arrow;
 
         RegisterHotkeys();
     }
@@ -112,7 +116,7 @@ public partial class OverlayWindow : Window
                 _session.ClearAll();
                 break;
             case 0x50: // P
-                _session.PinAll();
+                _session.TogglePinMode(); // 钉住模式开关：开启后新画的笔迹持久存在
                 break;
         }
     }
@@ -149,8 +153,8 @@ public partial class OverlayWindow : Window
         if (_isHost || _drawMode == on) return;
         _drawMode = on;
         ApplyClickThrough();
-        // 绘画态用十字光标，让"现在能画"一眼可见（观看态穿透，光标归下层窗口）
-        Cursor = on ? Cursors.Cross : Cursors.Arrow;
+        // 绘画态用画笔造型光标，让"现在能画"一眼可见（观看态穿透，光标归下层窗口）
+        Cursor = on ? PenCursor : Cursors.Arrow;
         if (on) FlashGuide(); // 进绘画态时提示可画区域
         DrawModeChanged?.Invoke(on);
     }

@@ -98,8 +98,8 @@ public sealed class DrawCanvas : FrameworkElement
             {
                 dc.DrawGeometry(null, s.Pen, s.Geometry);
 
-                // 作者昵称标签：画在笔迹起点上方，随笔迹一起淡出（跟随映射矩形）
-                if (s.Points.Count > 0 && !string.IsNullOrEmpty(s.Author))
+                // 作者昵称标签：只在绘制中显示（落笔即见、收笔即隐，不再常驻）
+                if (s.Points.Count > 0 && !s.Ended && !string.IsNullOrEmpty(s.Author))
                 {
                     var p0 = _store.ToScreen(s.Points[0]);
                     var ft = new FormattedText(

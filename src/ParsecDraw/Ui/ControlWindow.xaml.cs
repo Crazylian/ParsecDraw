@@ -77,6 +77,10 @@ public partial class ControlWindow : Window
                     new Uri("pack://application:,,,/Assets/app.ico")),
                 ContextMenu = BuildTrayMenu(),
             };
+            // 关键：TaskbarIcon 是 FrameworkElement，代码创建（不进可视化树）不触发
+            // Loaded，托盘图标永远不会出现——必须 ForceCreate 立即建图标，
+            // 否则关窗后进程活着但托盘无图标，只能任务管理器结束进程
+            _tray.ForceCreate();
             _tray.TrayLeftMouseUp += (_, _) => RestoreFromTray();
         }
     }

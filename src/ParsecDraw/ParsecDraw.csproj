@@ -9,7 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>ParsecDraw</RootNamespace>
     <AssemblyName>ParsecDraw</AssemblyName>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- 不要开 InvariantGlobalization：WPF 文本输入在中文等非固定区域性的系统上
          获取输入法语言时会抛 CultureNotFoundException（TextBox 聚焦即崩） -->
@@ -21,6 +21,7 @@
   <ItemGroup>
     <!-- 窗口 Icon= 相对 URI 走 WPF Resource；exe 图标由 ApplicationIcon 嵌入 -->
     <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\pen.cur" />
   </ItemGroup>
 
   <ItemGroup>
