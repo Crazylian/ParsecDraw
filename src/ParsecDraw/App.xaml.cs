@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using ParsecDraw.Ui;
+using ParsecDraw.Win32;
 
 namespace ParsecDraw;
 
@@ -82,11 +83,41 @@ public partial class App : Application
             };
             t2.Start();
 
-            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
+            // ~4s：对观众覆盖层投递真实路径的合成输入——
+            // 输入走 WndProc 原始消息（PostMessage 直达，与真实鼠标同路），热键走 WM_HOTKEY。
+            Session? viewerForInput = null;
+            OverlayWindow? overlayForInput = null;
+            var t3 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+            t3.Tick += (_, _) =>
+            {
+                t3.Stop();
+                if (viewerOverlay is null || viewer is null) return;
+                viewerForInput = viewer;
+                overlayForInput = viewerOverlay;
+                var h = viewerOverlay.HwndForSmoke;
+                result.Add($"pre-input draw-mode={viewerOverlay.DrawMode}");
+                if (h != IntPtr.Zero)
+                {
+                    if (viewerOverlay.DrawMode)
+                    {
+                        WinApi.PostMouse(h, 0x0201, 600, 400); // WM_LBUTTONDOWN
+                        for (var i = 1; i <= 8; i++)
+                            WinApi.PostMouse(h, 0x0200, 600 + i * 12, 400 + i * 6); // WM_MOUSEMOVE
+                        WinApi.PostMouse(h, 0x0202, 696, 448); // WM_LBUTTONUP
+                    }
+                    WinApi.PostHotkey(h, 1); // Ctrl+Alt+D → 观众切换绘画/观看态
+                }
+                result.Add("synth-input-posted");
+            };
+            t3.Start();
+
+            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(7) };
             t.Tick += (_, _) =>
             {
                 t.Stop();
                 result.Add($"host-info-received={hostInfoSeen}");
+                if (overlayForInput is not null)
+                    result.Add($"post-input draw-mode={overlayForInput.DrawMode} strokes={viewerForInput!.Store.Strokes.Count}");
                 if (viewerOverlay is not null)
                 {
                     var m = viewerOverlay.MapRectForSmoke;
@@ -98,7 +129,12 @@ public partial class App : Application
                             && !viewerOverlay.MapRectForSmoke.IsEmpty
                             && viewerOverlay.MapRectForSmoke.Width > 0
                             && viewerOverlay.AlignmentRescansForSmoke > 0; // 窗口枚举真实跑过
-                Shutdown(hostInfoSeen && mapOk && trayOk ? 0 : 1);
+                // 合成输入必须真的画出笔迹、热键必须真的切了模式
+                var inputOk = overlayForInput is not null
+                              && viewerForInput is not null
+                              && viewerForInput.Store.Strokes.Count > 0
+                              && overlayForInput.DrawMode == false; // 热键后应处于观看态
+                Shutdown(hostInfoSeen && mapOk && trayOk && inputOk ? 0 : 1);
             };
             t.Start();
             return;

@@ -126,6 +126,20 @@ internal static partial class WinApi
         }
     }
 
+    // ---- 合成输入（冒烟测试用：向指定窗口投递鼠标/热键消息）----
+
+    [LibraryImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool PostMessageWNative(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>向窗口客户区坐标 (x,y) 投递鼠标消息（msg=0x200 移动 / 0x201 左键按下 / 0x202 左键抬起）。</summary>
+    public static void PostMouse(IntPtr hWnd, uint msg, int x, int y)
+        => PostMessageWNative(hWnd, msg, (IntPtr)1, (IntPtr)(((y & 0xFFFF) << 16) | (x & 0xFFFF)));
+
+    /// <summary>向窗口投递 WM_HOTKEY（id=注册时的热键 id），走应用自己的 WndProc 路径。</summary>
+    public static void PostHotkey(IntPtr hWnd, int id)
+        => PostMessageWNative(hWnd, 0x0312, (IntPtr)id, IntPtr.Zero);
+
     /// <summary>切换窗口的点击穿透 / 不抢焦点扩展样式。AllowsTransparency 的窗口已带 WS_EX_LAYERED。</summary>
     public static void SetClickThrough(IntPtr hwnd, bool clickThrough, bool noActivate)
     {

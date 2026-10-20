@@ -45,14 +45,8 @@ public partial class OverlayWindow : Window
 
         Loaded += OnLoaded;
         Closed += (_, _) => { ReleaseHotkeys(); _tracker?.Dispose(); };
-        MouseLeftButtonDown += OnMouseDown;
-        MouseMove += OnMouseMove;
-        MouseLeftButtonUp += OnMouseUp;
-        LostMouseCapture += (_, _) => _session.StrokeEnd();
-        MouseRightButtonUp += (_, _) =>
-        {
-            if (!_isHost) SetDrawMode(false); // 右键快速退出绘画态
-        };
+        // 鼠标输入不走 WPF 事件，直接在 WndProc 处理原始消息：
+        // 透明覆盖层的命中测试怪癖全部绕开，且可用 PostMessage 无头自测。
     }
 
     public bool DrawMode => _drawMode;
@@ -62,6 +56,9 @@ public partial class OverlayWindow : Window
 
     /// <summary>对齐追踪实际执行过的窗口重扫次数（冒烟测试观测用）。</summary>
     internal int AlignmentRescansForSmoke => _tracker?.RescansForSmoke ?? -1;
+
+    /// <summary>覆盖层窗口句柄（冒烟测试合成输入用）。</summary>
+    internal IntPtr HwndForSmoke => _hwnd;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -85,6 +82,7 @@ public partial class OverlayWindow : Window
         // 主机：恒穿透；观众：初始即绘画态（连上就想画）
         _drawMode = !_isHost;
         ApplyClickThrough();
+        Cursor = _drawMode ? Cursors.Cross : Cursors.Arrow;
 
         RegisterHotkeys();
     }
@@ -121,6 +119,8 @@ public partial class OverlayWindow : Window
         if (_isHost || _drawMode == on) return;
         _drawMode = on;
         ApplyClickThrough();
+        // 绘画态用十字光标，让"现在能画"一眼可见（观看态穿透，光标归下层窗口）
+        Cursor = on ? Cursors.Cross : Cursors.Arrow;
         if (on) FlashGuide(); // 进绘画态时提示可画区域
         DrawModeChanged?.Invoke(on);
     }
@@ -133,26 +133,36 @@ public partial class OverlayWindow : Window
         Visibility = Visibility == Visibility.Visible ? Visibility.Hidden : Visibility.Visible;
     }
 
-    // ---- 输入 ----
+    // ---- 输入（原始消息，WndProc 分发） ----
 
-    private void OnMouseDown(object sender, MouseButtonEventArgs e)
+    private void HandleMouseMessage(uint msg, IntPtr lParam)
     {
-        if (_isHost || !_drawMode || e.ChangedButton != MouseButton.Left) return;
-        _session.StrokeBegin(ToNormalized(e.GetPosition(this)));
-        CaptureMouse();
-    }
+        // lParam 为客户区物理像素坐标，转 DIP 后再做归一化
+        var px = new System.Windows.Point(
+            (short)(lParam.ToInt64() & 0xFFFF),
+            (short)((lParam.ToInt64() >> 16) & 0xFFFF));
+        var dip = PresentationSource.FromVisual(this)?.CompositionTarget is { } ct
+            ? ct.TransformFromDevice.Transform(px)
+            : px;
 
-    private void OnMouseMove(object sender, MouseEventArgs e)
-    {
-        if (!_session.HasActiveStroke) return;
-        _session.StrokeMove(ToNormalized(e.GetPosition(this)));
-    }
-
-    private void OnMouseUp(object sender, MouseButtonEventArgs e)
-    {
-        if (!_session.HasActiveStroke || e.ChangedButton != MouseButton.Left) return;
-        _session.StrokeEnd();
-        ReleaseMouseCapture();
+        switch (msg)
+        {
+            case 0x0201: // WM_LBUTTONDOWN
+                if (!_isHost && _drawMode)
+                    _session.StrokeBegin(ToNormalized(dip));
+                break;
+            case 0x0200: // WM_MOUSEMOVE
+                if (_session.HasActiveStroke)
+                    _session.StrokeMove(ToNormalized(dip));
+                break;
+            case 0x0202: // WM_LBUTTONUP
+                if (_session.HasActiveStroke)
+                    _session.StrokeEnd();
+                break;
+            case 0x0205: // WM_RBUTTONUP
+                if (!_isHost) SetDrawMode(false); // 右键快速退出绘画态
+                break;
+        }
     }
 
     /// <summary>屏幕 DIP → [0,1] 归一化（按映射矩形；越界钳到边界）。</summary>
@@ -203,6 +213,11 @@ public partial class OverlayWindow : Window
                     handled = true;
                     break;
             }
+        }
+        else if (!_isHost && msg is 0x0200 or 0x0201 or 0x0202 or 0x0205)
+        {
+            HandleMouseMessage((uint)msg, lParam);
+            handled = true;
         }
         return IntPtr.Zero;
     }

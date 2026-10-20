@@ -167,14 +167,12 @@ public partial class ToolbarWindow : Window
             ? new SolidColorBrush(Color.FromArgb(0x44, 0x2E, 0xD5, 0x73))
             : new SolidColorBrush(Color.FromArgb(0x33, 0x4D, 0xA3, 0xFF));
         ModeText.Text += drawing ? " · 右键退出" : "";
-        BtnExitDraw.Visibility = drawing ? Visibility.Visible : Visibility.Collapsed;
+        // 切换按钮两个态都在：观看态显示"开始绘画"（此前被藏掉，提示文案却让人点它）
+        BtnExitDraw.Visibility = Visibility.Visible;
+        BtnExitDraw.Content = drawing ? "完成" : "开始绘画";
         HintText.Text = drawing
             ? "Ctrl+Alt+D / 右键 = 退出绘画态（穿透回 Parsec）；Ctrl+Alt+P 钉住，Ctrl+Alt+C 清空，Ctrl+Z 撤销"
             : "当前穿透：鼠标直接操作 Parsec 窗口。Ctrl+Alt+D 或点\"开始绘画\"进入绘画态";
-        if (!drawing && BtnExitDraw.Content.ToString() == "完成")
-            BtnExitDraw.Content = "开始绘画";
-        else if (drawing)
-            BtnExitDraw.Content = "完成";
     }
 
     public void ReassertAboveOverlay()
