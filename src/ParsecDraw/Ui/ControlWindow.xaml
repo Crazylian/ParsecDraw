@@ -15,16 +15,8 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 标题栏 -->
-        <Border Grid.Row="0" Height="44">
-            <StackPanel Orientation="Horizontal" Margin="16,0,0,0">
-                <Image Source="/Assets/app.ico" Width="20" Height="20" VerticalAlignment="Center" />
-                <TextBlock Text="ParsecDraw" FontSize="14" FontWeight="SemiBold"
-                           Foreground="#FFF0F0F8" Margin="10,0,0,0" VerticalAlignment="Center" />
-                <TextBlock Text="观战画笔" FontSize="12" Foreground="#FF8A8AA2"
-                           Margin="8,1,0,0" VerticalAlignment="Center" />
-            </StackPanel>
-        </Border>
+        <!-- 标题栏：ui:TitleBar 提供关闭/最小化按钮与拖拽区（ExtendsContentIntoTitleBar 必须配它） -->
+        <ui:TitleBar Grid.Row="0" Title="ParsecDraw" Icon="/Assets/app.ico" Height="44" />
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Disabled">
             <StackPanel Margin="20,6,20,18">

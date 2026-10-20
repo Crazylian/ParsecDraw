@@ -76,6 +76,7 @@ public partial class App : Application
             Session? viewer = null;
             OverlayWindow? viewerOverlay = null;
             var hostInfoSeen = false;
+            var modeEventSeen = false; // 初始化事件必须发（工具栏模式同步依赖它）
             var t2 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
             t2.Tick += (_, _) =>
             {
@@ -91,8 +92,9 @@ public partial class App : Application
                 };
                 viewer.StartViewer(Dispatcher, $"ws://127.0.0.1:{Session.DefaultPort}");
                 viewerOverlay = new OverlayWindow(viewer, isHost: false);
+                viewerOverlay.DrawModeChanged += _ => modeEventSeen = true;
                 viewerOverlay.Show();
-                result.Add("viewer-overlay-up");
+                result.Add($"viewer-overlay-up mode-event={modeEventSeen}");
             };
             t2.Start();
 
@@ -176,7 +178,8 @@ public partial class App : Application
                               && erasedOk // 橡皮真的整笔擦掉了
                               && overlayForInput.DrawMode == false // 热键后应处于观看态
                               && overlayForInput.HotkeyHookActiveForSmoke // LL 钩子装上了
-                              && hitOk; // OS 级命中：真实点击能落在覆盖层上
+                              && hitOk // OS 级命中：真实点击能落在覆盖层上
+                              && modeEventSeen; // 初始化事件已发（工具栏同步修复的回归防线）
                 Shutdown(hostInfoSeen && mapOk && trayOk && inputOk ? 0 : 1);
             };
             t.Start();

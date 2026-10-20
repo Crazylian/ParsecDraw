@@ -97,6 +97,9 @@ public partial class OverlayWindow : Window
         _drawMode = !_isHost;
         ApplyClickThrough();
         UpdateToolCursor();
+        // 工具栏在 SourceInitialized（早于 Loaded）时创建，读到的是默认 false——
+        // 初始化完补发一次事件，让它的"绘画中/观看中"与实际状态同步（老 bug）
+        DrawModeChanged?.Invoke(_drawMode);
 
         RegisterHotkeys();
     }
