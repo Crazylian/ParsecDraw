@@ -15,17 +15,23 @@ public partial class ControlWindow : Window
 {
     private readonly Session _session = new();
     private readonly Settings _settings = SettingsStore.Load();
+    private readonly bool _minimizeToTray;
     private OverlayWindow? _overlay;
     private ToolbarWindow? _toolbar;
     private DispatcherTimer? _zOrderTimer;
+    private TrayIcon? _tray;
 
     private int _sessionPort = Session.DefaultPort;
     private int _onlineCount;
     private string _hostLine = "等待观众…";
+    private bool _reallyExit;   // 托盘菜单"退出"置位：之后的 Close 是真退出
+    private bool _exitHandled;  // 收尾流程已启动，Shutdown 触发的二次 Close 直接放行
+    private bool _balloonShown; // 首次进托盘的气泡只弹一次
 
-    public ControlWindow()
+    public ControlWindow(bool minimizeToTray = true)
     {
         InitializeComponent();
+        _minimizeToTray = minimizeToTray;
         UrlBox.Text = _settings.Url;
         NameBox.Text = _settings.Name;
         _session.ColorHex = _settings.Color;
@@ -55,12 +61,66 @@ public partial class ControlWindow : Window
             ViewerStatus.Text = connected ? "已连接 · 覆盖层就绪，直接画即可" : "重连中…";
         });
 
-        Closing += async (_, _) =>
+        Closing += OnClosing;
+        StateChanged += (_, _) =>
         {
-            await TeardownSessionAsync();
-            SaveSettings();
-            Application.Current.Shutdown();
+            if (_minimizeToTray && !_reallyExit && WindowState == WindowState.Minimized)
+                HideToTray(showBalloon: false); // 最小化也进托盘，不留任务栏
         };
+
+        if (_minimizeToTray)
+        {
+            _tray = new TrayIcon("ParsecDraw — 观战画笔");
+            _tray.OpenRequested += () => Dispatcher.BeginInvoke(() =>
+            {
+                Show();
+                WindowState = WindowState.Normal;
+                Activate();
+            });
+            _tray.ExitRequested += () => Dispatcher.BeginInvoke(() =>
+            {
+                _reallyExit = true;
+                Close();
+            });
+        }
+    }
+
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_exitHandled)
+            return; // 放行：让这次 Close 真正关掉窗口
+
+        if (_minimizeToTray && !_reallyExit)
+        {
+            e.Cancel = true;
+            HideToTray(showBalloon: true);
+            return;
+        }
+
+        // 真退出：同步撤托盘/存设置；会话收尾是快路径（关窗 + Abort socket），放后台跑。
+        // 这里不 Cancel —— OnClosed 统一触发 Shutdown，避免和 Shutdown 流程互相等死。
+        _exitHandled = true;
+        _tray?.Dispose();
+        _tray = null;
+        SaveSettings();
+        _ = TeardownSessionAsync();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        if (_exitHandled)
+            Application.Current.Shutdown(); // ShutdownMode=OnExplicitShutdown
+    }
+
+    private void HideToTray(bool showBalloon)
+    {
+        Hide();
+        if (showBalloon && !_balloonShown)
+        {
+            _balloonShown = true;
+            _tray?.ShowInfo("ParsecDraw 仍在运行", "已最小化到托盘：左键点图标恢复面板，右键菜单可退出。");
+        }
     }
 
     private void RefreshHostStatus()
@@ -83,6 +143,9 @@ public partial class ControlWindow : Window
         _hostLine = "等待观众…";
         ShowSessionWindows(isHost: true);
     }
+
+    /// <summary>冒烟测试用：等价于点下"我是主机"。</summary>
+    internal void SmokeStartHost() => OnChooseHost(this, new RoutedEventArgs());
 
     private void OnChooseViewer(object sender, RoutedEventArgs e)
     {
@@ -143,10 +206,12 @@ public partial class ControlWindow : Window
         };
         _overlay.Show();
 
-        // 每 2s 重申置顶，防止其他置顶窗口压住覆盖层
+        // 每 2s 重申置顶，防止其他置顶窗口压住覆盖层；主机顺带探测分辨率变化（游戏内切分辨率）
         _zOrderTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _zOrderTimer.Tick += (_, _) =>
         {
+            if (isHost)
+                _session.AnnounceHostScreen();
             if (_overlay is null || _toolbar is null) return;
             if (_overlay.IsLoaded)
             {

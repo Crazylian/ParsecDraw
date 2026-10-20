@@ -31,8 +31,22 @@ public sealed class DrawServer : IAsyncDisposable
     private readonly object _gate = new();
     private int _nextId;
 
+    /// <summary>主机屏幕分辨率（物理 px），新观众接入时单播给对方做对齐补偿。</summary>
+    private double _hostW, _hostH;
+
     public int BoundPort { get; private set; }
     public bool Running { get; private set; }
+
+    /// <summary>设置/更新主机屏幕分辨率；有变化时同步广播给已连接的观众。</summary>
+    public void SetHostScreen(double w, double h)
+    {
+        if (w <= 0 || h <= 0) return;
+        var changed = w != _hostW || h != _hostH;
+        _hostW = w;
+        _hostH = h;
+        if (changed && Running)
+            BroadcastLocal(new Msg { T = MsgTypes.Host, W = w, H = h });
+    }
 
     /// <summary>任何客户端发来的消息（已通过权限校验）。IO 线程回调，订阅方自行调度。</summary>
     public event Action<Msg>? Received;
@@ -124,6 +138,10 @@ public sealed class DrawServer : IAsyncDisposable
             ClientJoined?.Invoke(client.Id);
             ClientCountChanged?.Invoke(ClientCount);
 
+            // 单播主机分辨率：观众端据此做 Parsec 窗口的黑边/对齐补偿
+            if (_hostW > 0 && _hostH > 0)
+                _ = SendAsync(client, Encode(new Msg { T = MsgTypes.Host, W = _hostW, H = _hostH }));
+
             var buffer = new byte[64 * 1024];
             while (!ct.IsCancellationRequested && client.Socket.State == WebSocketState.Open)
             {
@@ -145,7 +163,7 @@ public sealed class DrawServer : IAsyncDisposable
                 if (msg is null || msg.T.Length == 0)
                     continue;
 
-                // 权限校验：只能撤销自己 begun 的笔迹
+                // 权限校验：只能撤销自己 begun 的笔迹；host 信息只允许服务器下发
                 switch (msg.T)
                 {
                     case MsgTypes.Begin when msg.Id is not null:
@@ -155,6 +173,8 @@ public sealed class DrawServer : IAsyncDisposable
                         if (msg.Id is null || !client.OwnStrokes.Remove(msg.Id))
                             continue; // 不是你的笔迹，丢弃
                         break;
+                    case MsgTypes.Host:
+                        continue; // 伪造就地丢弃
                 }
 
                 Broadcast(msg, except: client);
@@ -180,7 +200,7 @@ public sealed class DrawServer : IAsyncDisposable
 
     private void Broadcast(Msg m, Client? except)
     {
-        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(m, AppJsonContext.Default.Msg));
+        var bytes = Encode(m);
         List<Client> snapshot;
         lock (_gate) snapshot = new(_clients);
         foreach (var c in snapshot)
@@ -189,6 +209,9 @@ public sealed class DrawServer : IAsyncDisposable
             _ = SendAsync(c, bytes);
         }
     }
+
+    private static byte[] Encode(Msg m)
+        => Encoding.UTF8.GetBytes(JsonSerializer.Serialize(m, AppJsonContext.Default.Msg));
 
     private static async Task SendAsync(Client c, byte[] bytes)
     {

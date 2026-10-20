@@ -28,7 +28,7 @@ public sealed class DrawCanvas : FrameworkElement
     {
         _store = store;
         store.Changed += OnStoreChanged;
-        SizeChanged += (_, e) => store.SetViewport(e.NewSize.Width, e.NewSize.Height);
+        // 映射矩形（含黑边补偿）由 OverlayWindow 通过 store.SetMap 驱动
     }
 
     private static Brush MakeFrozen(Color c)
@@ -98,10 +98,10 @@ public sealed class DrawCanvas : FrameworkElement
             {
                 dc.DrawGeometry(null, s.Pen, s.Geometry);
 
-                // 作者昵称标签：画在笔迹起点上方，随笔迹一起淡出
+                // 作者昵称标签：画在笔迹起点上方，随笔迹一起淡出（跟随映射矩形）
                 if (s.Points.Count > 0 && !string.IsNullOrEmpty(s.Author))
                 {
-                    var p0 = new Point(s.Points[0].X * ActualWidth, s.Points[0].Y * ActualHeight);
+                    var p0 = _store.ToScreen(s.Points[0]);
                     var ft = new FormattedText(
                         s.Author,
                         CultureInfo.InvariantCulture,

@@ -86,7 +86,7 @@ public sealed class StrokeStore
     private readonly Dictionary<string, Stroke> _byId = new(StringComparer.Ordinal);
     private readonly Func<long> _clock;
 
-    private double _viewportW = 1920, _viewportH = 1080;
+    private double _mapX, _mapY, _mapW = 1920, _mapH = 1080;
 
     public StrokeStore(Func<long>? clock = null)
         => _clock = clock ?? (() => Environment.TickCount64);
@@ -97,6 +97,10 @@ public sealed class StrokeStore
     public event Action? Changed;
 
     public Stroke? GetById(string id) => _byId.GetValueOrDefault(id);
+
+    /// <summary>归一化坐标 → 画布 DIP 坐标（按当前映射矩形）。</summary>
+    public Point ToScreen(Point normalized)
+        => new(_mapX + normalized.X * _mapW, _mapY + normalized.Y * _mapH);
 
     /// <summary>某人最后一条已结束的笔迹（撤销用）。</summary>
     public Stroke? LastEndedStrokeOf(string clientId)
@@ -110,12 +114,19 @@ public sealed class StrokeStore
         return null;
     }
 
-    public void SetViewport(double w, double h)
+    /// <summary>
+    /// 设定映射矩形（画布 DIP 坐标）：[0,1] 归一化坐标渲染/输入都落在该矩形内。
+    /// 主机端恒为 (0,0,屏宽,屏高)；观众端为 Parsec 视频画面实际所在区域（黑边补偿）。
+    /// </summary>
+    public void SetMap(Rect map)
     {
-        if (w <= 0 || h <= 0) return;
-        if (Math.Abs(w - _viewportW) < 0.5 && Math.Abs(h - _viewportH) < 0.5) return;
-        _viewportW = w;
-        _viewportH = h;
+        if (map.Width <= 0 || map.Height <= 0 || double.IsNaN(map.X) || double.IsNaN(map.Y)) return;
+        if (Math.Abs(map.X - _mapX) < 0.5 && Math.Abs(map.Y - _mapY) < 0.5
+            && Math.Abs(map.Width - _mapW) < 0.5 && Math.Abs(map.Height - _mapH) < 0.5) return;
+        _mapX = map.X;
+        _mapY = map.Y;
+        _mapW = map.Width;
+        _mapH = map.Height;
         foreach (var s in _strokes)
         {
             RebuildGeometry(s);
@@ -299,7 +310,7 @@ public sealed class StrokeStore
 
     private void RebuildPen(Stroke s)
     {
-        var scale = Math.Clamp(_viewportH / 1080.0, 0.5, 3.0);
+        var scale = Math.Clamp(_mapH / 1080.0, 0.5, 3.0);
         var pen = new Pen(BrushCache.Get(s.ColorHex), Math.Max(1, s.Width * scale))
         {
             StartLineCap = PenLineCap.Round,
@@ -310,7 +321,7 @@ public sealed class StrokeStore
         s.Pen = pen;
     }
 
-    private Point ToDip(Point normalized) => new(normalized.X * _viewportW, normalized.Y * _viewportH);
+    private Point ToDip(Point normalized) => new(_mapX + normalized.X * _mapW, _mapY + normalized.Y * _mapH);
 
     private void Raise() => Changed?.Invoke();
 }

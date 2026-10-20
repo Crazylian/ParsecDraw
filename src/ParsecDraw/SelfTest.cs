@@ -54,7 +54,7 @@ public static class SelfTest
         {
             long now = 10_000;
             var store = new StrokeStore(() => now);
-            store.SetViewport(1920, 1080);
+            store.SetMap(new System.Windows.Rect(0, 0, 1920, 1080));
             store.Apply(new Msg
             {
                 T = MsgTypes.Begin, Id = "ab01-1", Name = "小明",
@@ -93,7 +93,7 @@ public static class SelfTest
         {
             long now = 100_000;
             var store = new StrokeStore(() => now);
-            store.SetViewport(1920, 1080);
+            store.SetMap(new System.Windows.Rect(0, 0, 1920, 1080));
 
             store.Apply(new Msg
             {
@@ -137,6 +137,49 @@ public static class SelfTest
         catch (Exception ex)
         {
             Check(false, "store extras threw: " + ex);
+        }
+
+        // ---- 2c. 对齐/黑边补偿（letterbox 数学 + 映射矩形重映射） ----
+        try
+        {
+            // 16:9 塞进 16:10 屏幕 → 上下黑边
+            var r = Ui.AlignmentMath.FitInto(0, 0, 1920, 1200, 16.0 / 9);
+            Check(Math.Abs(r.X) < 0.01 && Math.Abs(r.Y - 60) < 0.01
+                  && Math.Abs(r.Width - 1920) < 0.01 && Math.Abs(r.Height - 1080) < 0.01,
+                $"letterbox: 16:9 in 1920x1200 -> ({r.X:0},{r.Y:0},{r.Width:0},{r.Height:0})");
+
+            // 16:9 塞进 4:3 窗口 → 左右黑边
+            r = Ui.AlignmentMath.FitInto(0, 0, 1024, 768, 16.0 / 9);
+            Check(Math.Abs(r.X) < 0.01 && Math.Abs(r.Y - 96) < 0.01
+                  && Math.Abs(r.Width - 1024) < 0.01 && Math.Abs(r.Height - 576) < 0.01,
+                "letterbox: 16:9 in 1024x768");
+
+            // 同比例 → 铺满；带偏移的区域原点保留
+            r = Ui.AlignmentMath.FitInto(100, 50, 800, 450, 16.0 / 9);
+            Check(Math.Abs(r.X - 100) < 0.01 && Math.Abs(r.Y - 50) < 0.01
+                  && Math.Abs(r.Width - 800) < 0.01 && Math.Abs(r.Height - 450) < 0.01,
+                "letterbox: same aspect fills area, origin kept");
+
+            // 非整屏映射下几何与标签都落在矩形内
+            long now2 = 200_000;
+            var store2 = new StrokeStore(() => now2);
+            store2.SetMap(new System.Windows.Rect(100, 50, 800, 450));
+            store2.Apply(new Msg
+            {
+                T = MsgTypes.Begin, Id = "ee03-1", Name = "对齐",
+                Color = "#FFFFFF", W = 6, K = ToolKind.Pen,
+                P = new double[][] { new[] { 0.5, 0.5 } },
+            });
+            var p = store2.ToScreen(new System.Windows.Point(0.5, 0.5));
+            Check(Math.Abs(p.X - 500) < 0.01 && Math.Abs(p.Y - 275) < 0.01,
+                $"map: ToScreen(0.5,0.5) in (100,50,800,450) -> ({p.X:0},{p.Y:0})");
+            var g = store2.Strokes[0].Geometry!.Bounds;
+            Check(Math.Abs(g.X - 500) < 0.01 && Math.Abs(g.Y - 275) < 0.01,
+                "map: geometry respects map rect");
+        }
+        catch (Exception ex)
+        {
+            Check(false, "alignment threw: " + ex);
         }
 
         // ---- 3. 网络回环（真实 socket） ----
@@ -190,6 +233,24 @@ public static class SelfTest
             client2.Received += m => c2Got2.TrySetResult(m);
             client1.Send(new Msg { T = MsgTypes.Undo, Id = "cd02-1" });
             Check(await Wait(c2Got2.Task, 3000).ConfigureAwait(false), "net: own undo allowed");
+
+            // 主机分辨率通告：SetHostScreen 广播给已连接观众
+            var c1Host = NewTcs<Msg>();
+            client1.Received += m => { if (m.T == MsgTypes.Host) c1Host.TrySetResult(m); };
+            server.SetHostScreen(2560, 1440);
+            var gotHost = await Wait(c1Host.Task, 3000).ConfigureAwait(false);
+            Check(gotHost, "net: host screen broadcast");
+            if (gotHost)
+            {
+                var hm = await c1Host.Task;
+                Check(hm.W == 2560 && hm.H == 1440, "net: host screen fields intact");
+            }
+
+            // 观众伪造 host 消息必须被服务器拦截
+            var c1Fake = NewTcs<Msg>();
+            client1.Received += m => { if (m.T == MsgTypes.Host && c1Host.Task.IsCompleted) c1Fake.TrySetResult(m); };
+            client2.Send(new Msg { T = MsgTypes.Host, W = 1, H = 1 });
+            Check(!await Wait(c1Fake.Task, 1200).ConfigureAwait(false), "net: forged host blocked");
 
             // 非握手 HTTP → 状态页
             using var http = new System.Net.Sockets.TcpClient("127.0.0.1", server.BoundPort);

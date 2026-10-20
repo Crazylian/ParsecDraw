@@ -43,6 +43,89 @@ internal static partial class WinApi
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool UnregisterHotKeyNative(IntPtr hWnd, int id);
 
+    // ---- 窗口枚举 / 客户区 / DPI（观众端对齐补偿用）----
+
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left, Top, Right, Bottom;
+        public double Width => Right - Left;
+        public double Height => Bottom - Top;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X, Y;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool EnumWindowsNative(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [LibraryImport("user32.dll", EntryPoint = "IsWindow")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsWindowNative(IntPtr hWnd);
+
+    [LibraryImport("user32.dll", EntryPoint = "IsWindowVisible")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsWindowVisibleNative(IntPtr hWnd);
+
+    [LibraryImport("user32.dll", EntryPoint = "IsIconic")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsIconicNative(IntPtr hWnd);
+
+    [LibraryImport("user32.dll")]
+    private static partial uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetClientRectNative(IntPtr hWnd, out RECT lpRect);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ClientToScreenNative(IntPtr hWnd, ref POINT lpPoint);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetDpiForWindow")]
+    private static partial uint GetDpiForWindowNative(IntPtr hWnd);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetSystemMetrics")]
+    private static partial int GetSystemMetricsNative(int nIndex);
+
+    /// <summary>在调用方线程上枚举所有顶层窗口（回调返回 false 时停止）。</summary>
+    public static List<IntPtr> EnumTopLevelWindows()
+    {
+        var list = new List<IntPtr>(512);
+        EnumWindowsNative((h, _) => { list.Add(h); return true; }, IntPtr.Zero);
+        return list;
+    }
+
+    public static bool IsWindowAlive(IntPtr h) => h != IntPtr.Zero && IsWindowNative(h);
+    public static bool IsShown(IntPtr h) => IsWindowVisibleNative(h) && !IsIconicNative(h);
+
+    /// <summary>窗口所属进程 pid（0 = 失败）。</summary>
+    public static uint WindowPid(IntPtr h)
+    {
+        _ = GetWindowThreadProcessId(h, out var pid);
+        return pid;
+    }
+    public static bool TryGetClientRect(IntPtr h, out RECT r) => GetClientRectNative(h, out r);
+    public static bool TryClientToScreen(IntPtr h, ref POINT p) => ClientToScreenNative(h, ref p);
+    public static uint GetWindowDpi(IntPtr h) => GetDpiForWindowNative(h);
+
+    /// <summary>主显示器分辨率（物理 px）。</summary>
+    public static (int W, int H) PrimaryScreenSize
+    {
+        get
+        {
+            var w = GetSystemMetricsNative(0); // SM_CXSCREEN
+            var h = GetSystemMetricsNative(1); // SM_CYSCREEN
+            return (w, h);
+        }
+    }
+
     /// <summary>切换窗口的点击穿透 / 不抢焦点扩展样式。AllowsTransparency 的窗口已带 WS_EX_LAYERED。</summary>
     public static void SetClickThrough(IntPtr hwnd, bool clickThrough, bool noActivate)
     {

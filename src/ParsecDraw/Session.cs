@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using ParsecDraw.Draw;
 using ParsecDraw.Net;
 using ParsecDraw.Protocol;
+using ParsecDraw.Win32;
 
 namespace ParsecDraw;
 
@@ -46,6 +47,9 @@ public sealed class Session : IDisposable
     public event Action<int>? ViewerCount;
     public event Action<bool>? ConnectedChanged;
 
+    /// <summary>观众端收到主机屏幕分辨率（物理 px），用于对齐/黑边补偿。</summary>
+    public event Action<double, double>? HostInfo;
+
     public bool IsConnected => !Active || IsHost || _client?.State == ConnState.Connected;
     public bool HasActiveStroke => _active is not null;
 
@@ -62,6 +66,8 @@ public sealed class Session : IDisposable
         _server.ClientJoined += _ => Status?.Invoke("一位观众连接了");
         _server.ClientLeft += _ => Status?.Invoke("一位观众离开了");
         _server.ClientCountChanged += n => ViewerCount?.Invoke(n);
+        var (sw, sh) = WinApi.PrimaryScreenSize;
+        _server.SetHostScreen(sw, sh); // 新观众接入时单播，用于对齐补偿
         _server.Start(port);
         Status?.Invoke($"主机就绪，端口 {port}，等待观众…");
     }
@@ -144,6 +150,14 @@ public sealed class Session : IDisposable
         _active = null;
     }
 
+    /// <summary>主机端：重新通告当前屏幕分辨率（游戏内改分辨率后调用，会广播给观众）。</summary>
+    public void AnnounceHostScreen()
+    {
+        if (!IsHost) return;
+        var (sw, sh) = WinApi.PrimaryScreenSize;
+        _server?.SetHostScreen(sw, sh);
+    }
+
     /// <summary>撤销自己最后一条已结束的笔迹。</summary>
     public void UndoMine()
     {
@@ -211,6 +225,12 @@ public sealed class Session : IDisposable
             if (m.T == MsgTypes.Join)
             {
                 Status?.Invoke($"{m.Name ?? "观众"} 加入了观看");
+                return;
+            }
+            if (m.T == MsgTypes.Host)
+            {
+                if (m.H is > 0)
+                    HostInfo?.Invoke(m.W, m.H.Value);
                 return;
             }
             // 观众 LocalOnly 模式：不渲染别人的笔迹（避免与 Parsec 流重复），但协作指令照常生效

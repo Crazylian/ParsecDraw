@@ -11,5 +11,11 @@
         ShowActivated="False"
         ResizeMode="NoResize"
         Left="0" Top="0" Width="1920" Height="1080">
-    <draw:DrawCanvas x:Name="Canvas" />
+    <Grid>
+        <draw:DrawCanvas x:Name="Canvas" />
+        <!-- 对齐参考框：映射矩形变化/进绘画态时短暂闪现，提示可画区域 -->
+        <Rectangle x:Name="MapGuide" Stroke="#B04DA3FF" StrokeThickness="2"
+                   StrokeDashArray="6 4" StrokeDashCap="Round"
+                   IsHitTestVisible="False" Opacity="0" />
+    </Grid>
 </Window>

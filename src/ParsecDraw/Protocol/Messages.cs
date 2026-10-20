@@ -28,8 +28,11 @@ public sealed record Msg
     /// <summary>笔颜色 #RRGGBB（begin 时有效）。</summary>
     [JsonPropertyName("c")] public string? Color { get; init; }
 
-    /// <summary>基准粗细（px @1080p，begin 时有效）。</summary>
+    /// <summary>基准粗细（px @1080p，begin 时有效）；host 消息里表示主机屏幕宽（物理 px）。</summary>
     [JsonPropertyName("w")] public double W { get; init; }
+
+    /// <summary>主机屏幕高（物理 px，仅 host 消息；其余消息为 null 不上线）。</summary>
+    [JsonPropertyName("h")] public double? H { get; init; }
 
     /// <summary>工具类型（begin 时有效）。</summary>
     [JsonPropertyName("k")] public ToolKind K { get; init; } = ToolKind.Pen;
@@ -50,6 +53,9 @@ public static class MsgTypes
     public const string Undo = "undo";
     public const string Clear = "clear";
     public const string Pin = "pin";
+
+    /// <summary>主机通告屏幕分辨率（服务器单向发给观众，观众端做黑边/对齐补偿）。</summary>
+    public const string Host = "host";
 }
 
 public sealed record Settings

@@ -43,15 +43,54 @@ public partial class App : Application
             }
         }
 
-        // 冒烟测试：起 UI 3 秒后自动退出
+        // 冒烟测试：主机 UI + 同进程观众会话/覆盖层，6 秒后自动退出并写结果日志
+        // （不进托盘，避免 Close 被拦）
         if (args.Contains("--smoke"))
         {
-            new ControlWindow().Show();
-            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            var result = new List<string>();
+            var w = new ControlWindow(minimizeToTray: false);
+            w.Show();
+            w.Dispatcher.BeginInvoke(w.SmokeStartHost);
+            result.Add("host-window-up");
+
+            Session? viewer = null;
+            OverlayWindow? viewerOverlay = null;
+            var hostInfoSeen = false;
+            var t2 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+            t2.Tick += (_, _) =>
+            {
+                t2.Stop();
+                viewer = new Session { DisplayName = "冒烟" };
+                viewer.HostInfo += (hw, hh) =>
+                {
+                    if (!hostInfoSeen)
+                    {
+                        hostInfoSeen = true;
+                        result.Add($"host-info {hw:0}x{hh:0}");
+                    }
+                };
+                viewer.StartViewer(Dispatcher, $"ws://127.0.0.1:{Session.DefaultPort}");
+                viewerOverlay = new OverlayWindow(viewer, isHost: false);
+                viewerOverlay.Show();
+                result.Add("viewer-overlay-up");
+            };
+            t2.Start();
+
+            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
             t.Tick += (_, _) =>
             {
                 t.Stop();
-                Shutdown(0);
+                result.Add($"host-info-received={hostInfoSeen}");
+                if (viewerOverlay is not null)
+                {
+                    var m = viewerOverlay.MapRectForSmoke;
+                    result.Add($"viewer-map={m.X:0.0},{m.Y:0.0},{m.Width:0.0},{m.Height:0.0}");
+                }
+                try { File.WriteAllLines(Path.Combine(Path.GetTempPath(), "parsec-draw-smoke.log"), result); } catch { /* 日志尽力 */ }
+                var mapOk = viewerOverlay is not null
+                            && !viewerOverlay.MapRectForSmoke.IsEmpty
+                            && viewerOverlay.MapRectForSmoke.Width > 0;
+                Shutdown(hostInfoSeen && mapOk ? 0 : 1);
             };
             t.Start();
             return;
