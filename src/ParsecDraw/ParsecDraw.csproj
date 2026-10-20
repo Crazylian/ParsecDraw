@@ -10,7 +10,8 @@
     <RootNamespace>ParsecDraw</RootNamespace>
     <AssemblyName>ParsecDraw</AssemblyName>
     <Version>0.1.0</Version>
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- 不要开 InvariantGlobalization：WPF 文本输入在中文等非固定区域性的系统上
+         获取输入法语言时会抛 CultureNotFoundException（TextBox 聚焦即崩） -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <DebugType>embedded</DebugType>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
