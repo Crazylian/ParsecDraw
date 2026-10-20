@@ -11,7 +11,7 @@ namespace ParsecDraw.Ui;
 /// <summary>
 /// 控制窗：选角色、主机展示共享地址、观众填地址连接；持有会话与窗口生命周期。
 /// </summary>
-public partial class ControlWindow : Window
+public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
 {
     private readonly Session _session = new();
     private readonly Settings _settings = SettingsStore.Load();

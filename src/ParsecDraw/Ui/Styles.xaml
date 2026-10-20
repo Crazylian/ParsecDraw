@@ -8,7 +8,7 @@
     <SolidColorBrush x:Key="Fg" Color="#FFEAEAF2" />
     <SolidColorBrush x:Key="FgDim" Color="#FF8888A0" />
 
-    <!-- 工具栏小按钮 -->
+    <!-- 工具栏小按钮（旧键保留：颜色点等动态创建的按钮用） -->
     <Style x:Key="TbButton" TargetType="Button">
         <Setter Property="Background" Value="#FF3A3A4A" />
         <Setter Property="Foreground" Value="#FFEAEAF2" />
@@ -18,6 +18,51 @@
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <!-- 工具栏工具按钮：圆角、悬停反馈、选中态由代码改 Background/Border -->
+    <Style x:Key="TbTool" TargetType="Button">
+        <Setter Property="Background" Value="#003A3A4A" />
+        <Setter Property="Foreground" Value="#FFD6D6E4" />
+        <Setter Property="BorderBrush" Value="#33FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="9,5" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="7"
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#22FFFFFF" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 工具栏主按钮（完成） -->
+    <Style x:Key="TbToolPrimary" TargetType="Button" BasedOn="{StaticResource TbTool}">
+        <Setter Property="Foreground" Value="#FF0F1524" />
+        <Setter Property="Background" Value="#FF4DA3FF" />
+        <Setter Property="BorderBrush" Value="#FF4DA3FF" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- 工具栏分组分隔线 -->
+    <Style x:Key="TbSep" TargetType="Rectangle">
+        <Setter Property="Width" Value="1" />
+        <Setter Property="Fill" Value="#26FFFFFF" />
+        <Setter Property="Margin" Value="9,4" />
+        <Setter Property="RadiusX" Value="0.5" />
+        <Setter Property="RadiusY" Value="0.5" />
     </Style>
 
     <!-- 控制窗常规按钮 -->

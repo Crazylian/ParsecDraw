@@ -9,7 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>ParsecDraw</RootNamespace>
     <AssemblyName>ParsecDraw</AssemblyName>
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- 不要开 InvariantGlobalization：WPF 文本输入在中文等非固定区域性的系统上
          获取输入法语言时会抛 CultureNotFoundException（TextBox 聚焦即崩） -->
@@ -22,11 +22,14 @@
     <!-- 窗口 Icon= 相对 URI 走 WPF Resource；exe 图标由 ApplicationIcon 嵌入 -->
     <Resource Include="Assets\app.ico" />
     <Resource Include="Assets\pen.cur" />
+    <Resource Include="Assets\eraser.cur" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- 成熟托盘库（Hardcodet 继任者）：替换手写 Shell_NotifyIcon 互操作 -->
     <PackageReference Include="H.NotifyIcon.Wpf" Version="2.3.0" />
+    <!-- Fluent 风格 UI 库：控制窗/输入控件现代化 -->
+    <PackageReference Include="WPF-UI" Version="3.0.5" />
   </ItemGroup>
 
 </Project>

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using ParsecDraw.Protocol;
 using ParsecDraw.Win32;
 
 namespace ParsecDraw.Ui;
@@ -23,10 +24,15 @@ public partial class OverlayWindow : Window
     private static readonly Cursor PenCursor = new(
         Application.GetResourceStream(new Uri("pack://application:,,,/Assets/pen.cur"))!.Stream);
 
+    /// <summary>橡皮光标（tools/make_cursor.py --eraser 生成）。</summary>
+    private static readonly Cursor EraserCursor = new(
+        Application.GetResourceStream(new Uri("pack://application:,,,/Assets/eraser.cur"))!.Stream);
+
     private readonly Session _session;
     private readonly bool _isHost;
     private IntPtr _hwnd;
     private bool _drawMode; // 观众端：当前是否处于绘画态
+    private bool _erasing;  // 橡皮拖动擦除中
 
     private Rect _map = Rect.Empty;                 // [0,1] 归一化坐标 ⇄ 屏幕区域的映射矩形（DIP）
     private AlignmentTracker? _tracker;             // 观众端对齐追踪
@@ -90,7 +96,7 @@ public partial class OverlayWindow : Window
         // 主机：恒穿透；观众：初始即绘画态（连上就想画）
         _drawMode = !_isHost;
         ApplyClickThrough();
-        Cursor = _drawMode ? PenCursor : Cursors.Arrow;
+        UpdateToolCursor();
 
         RegisterHotkeys();
     }
@@ -153,8 +159,8 @@ public partial class OverlayWindow : Window
         if (_isHost || _drawMode == on) return;
         _drawMode = on;
         ApplyClickThrough();
-        // 绘画态用画笔造型光标，让"现在能画"一眼可见（观看态穿透，光标归下层窗口）
-        Cursor = on ? PenCursor : Cursors.Arrow;
+        // 绘画态用画笔/橡皮造型光标，让"现在能画"一眼可见（观看态穿透，光标归下层窗口）
+        UpdateToolCursor();
         if (on) FlashGuide(); // 进绘画态时提示可画区域
         DrawModeChanged?.Invoke(on);
     }
@@ -183,13 +189,26 @@ public partial class OverlayWindow : Window
         {
             case 0x0201: // WM_LBUTTONDOWN
                 if (!_isHost && _drawMode)
-                    _session.StrokeBegin(ToNormalized(dip));
+                {
+                    if (_session.Tool == ToolKind.Eraser)
+                    {
+                        _erasing = true;
+                        _session.EraseAt(dip);
+                    }
+                    else
+                    {
+                        _session.StrokeBegin(ToNormalized(dip));
+                    }
+                }
                 break;
             case 0x0200: // WM_MOUSEMOVE
-                if (_session.HasActiveStroke)
+                if (_erasing)
+                    _session.EraseAt(dip);
+                else if (_session.HasActiveStroke)
                     _session.StrokeMove(ToNormalized(dip));
                 break;
             case 0x0202: // WM_LBUTTONUP
+                _erasing = false;
                 if (_session.HasActiveStroke)
                     _session.StrokeEnd();
                 break;
@@ -198,6 +217,12 @@ public partial class OverlayWindow : Window
                 break;
         }
     }
+
+    /// <summary>当前工具对应的绘画态光标（画笔/橡皮）。</summary>
+    public void UpdateToolCursor()
+        => Cursor = _drawMode
+            ? (_session.Tool == ToolKind.Eraser ? EraserCursor : PenCursor)
+            : Cursors.Arrow;
 
     /// <summary>屏幕 DIP → [0,1] 归一化（按映射矩形；越界钳到边界）。</summary>
     private Point ToNormalized(Point p)

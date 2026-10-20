@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using ParsecDraw.Draw;
 using ParsecDraw.Protocol;
 
@@ -24,6 +25,13 @@ public partial class ToolbarWindow : Window
     private Button? _selectedColor;
     private Button? _selectedWidth;
     private bool _paused;
+
+    // ---- 靠边自动缩入 ----
+    private const double DockZone = 14;      // 距顶边多近算贴边
+    private const double DockPeek = 12;      // 缩入后露出多少像素
+    private bool _docked;
+    private bool _dragging;
+    private DispatcherTimer? _retractTimer;
 
     public ToolbarWindow(Session session, OverlayWindow overlay, bool isHost)
     {
@@ -53,6 +61,7 @@ public partial class ToolbarWindow : Window
             BtnToggle.Visibility = Visibility.Collapsed;
             BuildColorButtons();
             BuildWidthButtons();
+            SetTool(_session.Tool);
             _overlay.DrawModeChanged += OnDrawModeChanged;
             _session.PinModeChanged += OnPinModeChanged;
             UpdateModeUi(_overlay.DrawMode);
@@ -66,9 +75,8 @@ public partial class ToolbarWindow : Window
 
     private void UpdatePinUi()
     {
-        BtnPin.Content = _session.PinMode ? "钉住:开" : "钉住:关";
-        BtnPin.BorderThickness = new Thickness(2);
-        BtnPin.BorderBrush = (Brush)FindResourceInternal(_session.PinMode ? "TbAccent" : "TbBorder");
+        BtnPin.Content = _session.PinMode ? "◉ 钉住" : "◎ 钉住";
+        SelectVisual(BtnPin, _session.PinMode); // 与工具选中一致的开关样式
     }
 
     // ---- 构建 ----
@@ -200,21 +208,85 @@ public partial class ToolbarWindow : Window
 
     private void OnDragMove(object sender, MouseButtonEventArgs e)
     {
+        _dragging = true;
+        _retractTimer?.Stop();
+        BeginAnimation(TopProperty, null); // 释放动画对位置的占用
         try { DragMove(); } catch { /* 非按下态拖动 */ }
+        _dragging = false;
+        ConsiderDock();
     }
 
-    private void OnPen(object sender, RoutedEventArgs e)
+    // ---- 靠边自动缩入 ----
+
+    /// <summary>拖动结束后：贴近视频上边缘 → 缩入，只露一条把手。</summary>
+    private void ConsiderDock()
     {
-        _session.Tool = ToolKind.Pen;
-        BtnPen.BorderBrush = (Brush)FindResourceInternal("TbAccent");
-        BtnLaser.BorderBrush = (Brush)FindResourceInternal("TbBorder");
+        if (Top > DockZone)
+        {
+            _docked = false;
+            return;
+        }
+        _docked = true;
+        SlideTo(-(ActualHeight - DockPeek));
     }
 
-    private void OnLaser(object sender, RoutedEventArgs e)
+    private void OnToolbarMouseEnter(object sender, MouseEventArgs e)
     {
-        _session.Tool = ToolKind.Laser;
-        BtnLaser.BorderBrush = (Brush)FindResourceInternal("TbAccent");
-        BtnPen.BorderBrush = (Brush)FindResourceInternal("TbBorder");
+        _retractTimer?.Stop();
+        if (_docked)
+        {
+            _docked = false;
+            SlideTo(4);
+        }
+    }
+
+    private void OnToolbarMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (_dragging || Top > DockZone) return;
+        // 离开 1.2s 后再缩（避免来回抖）
+        _retractTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1.2), DispatcherPriority.Background, (_, _) =>
+        {
+            _retractTimer!.Stop();
+            if (_dragging || IsMouseOver) return;
+            _docked = true;
+            SlideTo(-(ActualHeight - DockPeek));
+        }, Dispatcher);
+        _retractTimer.Stop();
+        _retractTimer.Start();
+    }
+
+    private void SlideTo(double targetTop)
+    {
+        var anim = new System.Windows.Media.Animation.DoubleAnimation(targetTop, TimeSpan.FromMilliseconds(160))
+        {
+            EasingFunction = new System.Windows.Media.Animation.QuadraticEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
+        };
+        BeginAnimation(TopProperty, anim);
+    }
+
+    // ---- 工具三选一 ----
+
+    private void OnPen(object sender, RoutedEventArgs e) => SetTool(ToolKind.Pen);
+
+    private void OnLaser(object sender, RoutedEventArgs e) => SetTool(ToolKind.Laser);
+
+    private void OnEraser(object sender, RoutedEventArgs e) => SetTool(ToolKind.Eraser);
+
+    private void SetTool(ToolKind kind)
+    {
+        _session.Tool = kind;
+        SelectVisual(BtnPen, kind == ToolKind.Pen);
+        SelectVisual(BtnLaser, kind == ToolKind.Laser);
+        SelectVisual(BtnEraser, kind == ToolKind.Eraser);
+        _overlay.UpdateToolCursor();
+    }
+
+    /// <summary>工具按钮选中态：选中=蓝色描边+淡蓝填充，未选=透明。</summary>
+    private static void SelectVisual(Button b, bool on)
+    {
+        b.Background = on ? new SolidColorBrush(Color.FromArgb(0x3A, 0x4D, 0xA3, 0xFF)) : Brushes.Transparent;
+        b.BorderBrush = on ? new SolidColorBrush(Color.FromRgb(0x4D, 0xA3, 0xFF)) : new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        b.Foreground = on ? Brushes.White : new SolidColorBrush(Color.FromRgb(0xD6, 0xD6, 0xE4));
     }
 
     private void OnUndo(object sender, RoutedEventArgs e) => _session.UndoMine();

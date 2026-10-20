@@ -8,6 +8,7 @@ public enum ToolKind : byte
 {
     Pen = 0,
     Laser = 1,
+    Eraser = 2,
 }
 
 /// <summary>

@@ -102,6 +102,30 @@ public sealed class StrokeStore
     public Point ToScreen(Point normalized)
         => new(_mapX + normalized.X * _mapW, _mapY + normalized.Y * _mapH);
 
+    /// <summary>
+    /// 整笔橡皮命中：找距屏幕点 radiusDip 内、id 前缀匹配作者（null=不限）的笔迹，
+    /// 后画的优先（视觉在上层）。点距近似线距（采样密集）。
+    /// </summary>
+    public Stroke? FindStrokeNear(Point screenPt, double radiusDip, string? authorPrefix)
+    {
+        var r2 = radiusDip * radiusDip;
+        for (var i = _strokes.Count - 1; i >= 0; i--)
+        {
+            var s = _strokes[i];
+            if (authorPrefix is not null && !s.Id.StartsWith(authorPrefix + "-", StringComparison.Ordinal))
+                continue;
+            foreach (var p in s.Points)
+            {
+                var sp = ToScreen(p);
+                var dx = sp.X - screenPt.X;
+                var dy = sp.Y - screenPt.Y;
+                if (dx * dx + dy * dy <= r2)
+                    return s;
+            }
+        }
+        return null;
+    }
+
     /// <summary>某人最后一条已结束的笔迹（撤销用）。</summary>
     public Stroke? LastEndedStrokeOf(string clientId)
     {

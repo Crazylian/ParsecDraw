@@ -9,12 +9,14 @@
         Topmost="True"
         ShowInTaskbar="False"
         SizeToContent="WidthAndHeight"
-        ResizeMode="NoResize">
-    <Border Background="#E8202028" CornerRadius="10" Padding="10,7"
-            BorderBrush="#44FFFFFF" BorderThickness="1"
+        ResizeMode="NoResize"
+        MouseEnter="OnToolbarMouseEnter"
+        MouseLeave="OnToolbarMouseLeave">
+    <Border Background="#F01E1E28" CornerRadius="12" Padding="10,8"
+            BorderBrush="#3AFFFFFF" BorderThickness="1"
             MouseLeftButtonDown="OnDragMove">
         <StackPanel>
-            <WrapPanel x:Name="Row" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
 
                 <!-- 模式指示 -->
                 <Border x:Name="ModeBadge" Background="#334DA3FF" CornerRadius="6" Padding="8,4" Margin="0,0,10,0"
@@ -23,24 +25,32 @@
                                VerticalAlignment="Center" Text="绘画" />
                 </Border>
 
-                <!-- 观众端绘制工具 -->
+                <!-- 观众端绘制工具：画笔/激光/橡皮 三选一 -->
                 <StackPanel x:Name="DrawTools" Orientation="Horizontal" VerticalAlignment="Center">
-                    <StackPanel x:Name="ColorsPanel" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <StackPanel x:Name="WidthsPanel" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <Button x:Name="BtnPen" Content="画笔" Style="{StaticResource TbButton}" Margin="0,0,4,0" Click="OnPen" />
-                    <Button x:Name="BtnLaser" Content="激光" Style="{StaticResource TbButton}" Margin="0,0,10,0" Click="OnLaser" />
-                    <Button x:Name="BtnUndo" Content="撤销" Style="{StaticResource TbButton}" Margin="0,0,4,0" Click="OnUndo" />
+                    <Button x:Name="BtnPen" Content="✏ 画笔" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnPen" />
+                    <Button x:Name="BtnLaser" Content="◆ 激光" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnLaser" />
+                    <Button x:Name="BtnEraser" Content="▢ 橡皮" Style="{StaticResource TbTool}" Margin="0,0,0,0" Click="OnEraser"
+                            ToolTip="整笔擦除，只能擦自己的笔迹（拖动扫过要擦的线）" />
+
+                    <Rectangle Style="{StaticResource TbSep}" />
+
+                    <StackPanel x:Name="ColorsPanel" Orientation="Horizontal" VerticalAlignment="Center" />
+                    <StackPanel x:Name="WidthsPanel" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,2,0" />
+                    <Button x:Name="BtnUndo" Content="↶ 撤销" Style="{StaticResource TbTool}" Click="OnUndo" />
                 </StackPanel>
 
-                <!-- 通用动作 -->
-                <Button x:Name="BtnPin" Content="钉住:关" Style="{StaticResource TbButton}" Margin="0,0,4,0" Click="OnPin" ToolTip="开启后新画的笔迹持久保留，关闭后恢复自动淡出（Ctrl+Alt+P）" />
-                <Button x:Name="BtnClear" Content="清空" Style="{StaticResource TbButton}" Margin="0,0,10,0" Click="OnClear" />
-                <Button x:Name="BtnToggle" Content="暂停" Style="{StaticResource TbButton}" Margin="0,0,4,0" Click="OnToggle" />
+                <Rectangle x:Name="SepCommon" Style="{StaticResource TbSep}" />
+
+                <!-- 通用动作：钉住模式（开关样式）/ 清空 -->
+                <Button x:Name="BtnPin" Content="◎ 钉住" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnPin"
+                        ToolTip="开启后新画的笔迹持久保留，关闭后恢复自动淡出（Ctrl+Alt+P）" />
+                <Button x:Name="BtnClear" Content="✕ 清空" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnClear" />
+                <Button x:Name="BtnToggle" Content="暂停" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnToggle" />
 
                 <!-- 观众端：退出绘画态 -->
-                <Button x:Name="BtnExitDraw" Content="完成" Style="{StaticResource TbButton}" Click="OnExitDraw" />
-            </WrapPanel>
-            <TextBlock x:Name="HintText" Foreground="#FF8888A0" FontSize="11" Margin="2,5,0,0" TextWrapping="Wrap"
+                <Button x:Name="BtnExitDraw" Content="完成" Style="{StaticResource TbToolPrimary}" Click="OnExitDraw" />
+            </StackPanel>
+            <TextBlock x:Name="HintText" Foreground="#FF8A8AA2" FontSize="11" Margin="2,6,0,0" TextWrapping="Wrap"
                        Text="" />
         </StackPanel>
     </Border>

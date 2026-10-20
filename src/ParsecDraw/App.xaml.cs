@@ -101,6 +101,8 @@ public partial class App : Application
             Session? viewerForInput = null;
             OverlayWindow? overlayForInput = null;
             var hitOk = false;
+            var drewOk = false;
+            var erasedOk = false;
             var t3 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
             t3.Tick += (_, _) =>
             {
@@ -132,6 +134,23 @@ public partial class App : Application
             };
             t3.Start();
 
+            // ~5.5s：合成鼠标消息已被处理 → 验证画出笔迹，再验证橡皮整笔擦除
+            var t4 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            t4.Tick += (_, _) =>
+            {
+                t4.Stop();
+                if (viewerOverlay is null || viewer is null) return;
+                drewOk = viewer.Store.Strokes.Count > 0;
+                if (!drewOk) return;
+                var s0 = viewer.Store.Strokes[0];
+                var sp = viewer.Store.ToScreen(s0.Points[Math.Min(2, s0.Points.Count - 1)]);
+                viewer.Tool = Protocol.ToolKind.Eraser;
+                viewer.EraseAt(sp);
+                erasedOk = viewer.Store.Strokes.Count == 0;
+                result.Add($"eraser: removed={erasedOk}");
+            };
+            t4.Start();
+
             var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(7) };
             t.Tick += (_, _) =>
             {
@@ -153,7 +172,8 @@ public partial class App : Application
                 // 合成输入必须真的画出笔迹、热键必须真的切了模式
                 var inputOk = overlayForInput is not null
                               && viewerForInput is not null
-                              && viewerForInput.Store.Strokes.Count > 0
+                              && drewOk // 合成输入真的画出了笔迹
+                              && erasedOk // 橡皮真的整笔擦掉了
                               && overlayForInput.DrawMode == false // 热键后应处于观看态
                               && overlayForInput.HotkeyHookActiveForSmoke // LL 钩子装上了
                               && hitOk; // OS 级命中：真实点击能落在覆盖层上

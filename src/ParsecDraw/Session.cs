@@ -167,6 +167,17 @@ public sealed class Session : IDisposable
         _active = null;
     }
 
+    /// <summary>整笔橡皮：擦掉屏幕点附近自己画的笔迹（走 Undo 消息，服务器有归属校验）。</summary>
+    public void EraseAt(Point screenPoint)
+    {
+        if (!Active) return;
+        var s = Store.FindStrokeNear(screenPoint, 24, ClientId);
+        if (s is null) return;
+        var m = new Msg { T = MsgTypes.Undo, Id = s.Id };
+        Store.Apply(m);
+        Send(m);
+    }
+
     /// <summary>主机端：重新通告当前屏幕分辨率（游戏内改分辨率后调用，会广播给观众）。</summary>
     public void AnnounceHostScreen()
     {

@@ -1,82 +1,104 @@
-<Window x:Class="ParsecDraw.Ui.ControlWindow"
+<ui:FluentWindow x:Class="ParsecDraw.Ui.ControlWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="ParsecDraw — 观战画笔"
         Icon="/Assets/app.ico"
-        Width="480" SizeToContent="Height"
+        Width="500" SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource WinBg}"
+        ExtendsContentIntoTitleBar="True"
+        Background="#F216161E"
         ResizeMode="NoResize">
-    <StackPanel Margin="18,14,18,16">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-        <TextBlock Text="ParsecDraw" FontSize="20" FontWeight="Bold" Foreground="{StaticResource Fg}" />
-        <TextBlock Style="{StaticResource DimText}" Margin="1,2,0,14"
-                   Text="朋友观战时的画笔互动层：笔迹纯覆盖层同步，绝不向玩家机器注入任何输入" />
-
-        <!-- 角色选择 -->
-        <StackPanel x:Name="RolePanel">
-            <Button x:Name="BtnHost" Style="{StaticResource MainButton}" Margin="0,0,0,8"
-                    HorizontalContentAlignment="Left" Click="OnChooseHost">
-                <StackPanel>
-                    <TextBlock Text="我是主机（被观看 · 玩游戏）" FontWeight="SemiBold" />
-                    <TextBlock FontSize="11" Foreground="{StaticResource FgDim}"
-                               Text="启动共享服务，本机屏幕上显示笔迹覆盖层并随 Parsec 串流出去" />
-                </StackPanel>
-            </Button>
-            <Button x:Name="BtnViewer" Style="{StaticResource MainButton}"
-                    HorizontalContentAlignment="Left" Click="OnChooseViewer">
-                <StackPanel>
-                    <TextBlock Text="我是观众（画画 · 看别人玩）" FontWeight="SemiBold" />
-                    <TextBlock FontSize="11" Foreground="{StaticResource FgDim}"
-                               Text="连接主机，在 Parsec 画面上直接画线指点" />
-                </StackPanel>
-            </Button>
-        </StackPanel>
-
-        <!-- 主机面板 -->
-        <StackPanel x:Name="HostPanel" Visibility="Collapsed">
-            <TextBlock Style="{StaticResource DimText}" Margin="1,0,0,6" Text="把下面的地址发给观众（点击行复制）：" />
-            <ListBox x:Name="IpList" Background="{StaticResource PanelBg}" Foreground="{StaticResource Fg}"
-                     BorderBrush="#FF44445A" MaxHeight="110" FontSize="13"
-                     SelectionChanged="OnIpSelected" />
-            <TextBlock Style="{StaticResource DimText}" Margin="1,8,0,0" Text="状态" />
-            <TextBlock x:Name="HostStatus" Foreground="{StaticResource Fg}" FontSize="13" Margin="1,2,0,0" TextWrapping="Wrap"
-                       Text="未启动" />
-            <Button Style="{StaticResource MainButton}" Margin="0,12,0,0" Click="OnStopSession" Content="结束会话" />
-        </StackPanel>
-
-        <!-- 观众面板 -->
-        <StackPanel x:Name="ViewerPanel" Visibility="Collapsed">
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="64" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="地址" Style="{StaticResource DimText}" VerticalAlignment="Center" />
-                <TextBox x:Name="UrlBox" Grid.Column="1" Style="{StaticResource InputBox}"
-                         TextChanged="OnSettingChanged" />
-            </Grid>
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="64" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="昵称" Style="{StaticResource DimText}" VerticalAlignment="Center" />
-                <TextBox x:Name="NameBox" Grid.Column="1" Style="{StaticResource InputBox}"
-                         TextChanged="OnSettingChanged" />
-            </Grid>
-            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                <Ellipse x:Name="ConnDot" Width="10" Height="10" Fill="#FF8888A0" VerticalAlignment="Center" Margin="1,0,6,0" />
-                <TextBlock x:Name="ViewerStatus" Foreground="{StaticResource Fg}" FontSize="13"
-                           VerticalAlignment="Center" Text="未连接" />
+        <!-- 标题栏 -->
+        <Border Grid.Row="0" Height="44">
+            <StackPanel Orientation="Horizontal" Margin="16,0,0,0">
+                <Image Source="/Assets/app.ico" Width="20" Height="20" VerticalAlignment="Center" />
+                <TextBlock Text="ParsecDraw" FontSize="14" FontWeight="SemiBold"
+                           Foreground="#FFF0F0F8" Margin="10,0,0,0" VerticalAlignment="Center" />
+                <TextBlock Text="观战画笔" FontSize="12" Foreground="#FF8A8AA2"
+                           Margin="8,1,0,0" VerticalAlignment="Center" />
             </StackPanel>
-            <TextBlock x:Name="HostAddresses" Style="{StaticResource DimText}" Margin="1,8,0,0" TextWrapping="Wrap"
-                       Visibility="Collapsed" />
-            <Button x:Name="BtnConnect" Style="{StaticResource AccentButton}" Margin="0,12,0,0" Content="连接" Click="OnConnect" />
-            <Button Style="{StaticResource MainButton}" Margin="0,8,0,0" Content="断开并返回" Click="OnStopSession" />
-        </StackPanel>
+        </Border>
 
-        <TextBlock x:Name="HintLine" Style="{StaticResource DimText}" Margin="1,14,0,0" TextWrapping="Wrap"
-                   Text="提示：游戏请用无边框窗口模式（独占全屏会盖住覆盖层）；跨公网请用 Tailscale 等先打通网络。" />
-    </StackPanel>
-</Window>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Disabled">
+            <StackPanel Margin="20,6,20,18">
+
+                <!-- 角色选择 -->
+                <StackPanel x:Name="RolePanel">
+                    <ui:CardAction x:Name="BtnHost" Margin="0,0,0,10" Click="OnChooseHost">
+                        <ui:CardAction.Icon>
+                            <ui:SymbolIcon Symbol="PersonBoard24" />
+                        </ui:CardAction.Icon>
+                        <StackPanel>
+                            <TextBlock Text="我是主机（被观看 · 玩游戏）" FontWeight="SemiBold" FontSize="13" />
+                            <TextBlock FontSize="11" Foreground="#FF8A8AA2" Margin="1,3,0,0"
+                                       Text="启动共享服务，屏幕上显示笔迹覆盖层并随 Parsec 串流出去" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ui:CardAction>
+                    <ui:CardAction x:Name="BtnViewer" Click="OnChooseViewer">
+                        <ui:CardAction.Icon>
+                            <ui:SymbolIcon Symbol="InkingTool20" />
+                        </ui:CardAction.Icon>
+                        <StackPanel>
+                            <TextBlock Text="我是观众（画画 · 看别人玩）" FontWeight="SemiBold" FontSize="13" />
+                            <TextBlock FontSize="11" Foreground="#FF8A8AA2" Margin="1,3,0,0"
+                                       Text="连接主机，在 Parsec 画面上直接画线指点" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ui:CardAction>
+                </StackPanel>
+
+                <!-- 主机面板 -->
+                <StackPanel x:Name="HostPanel" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource DimText}" Margin="1,0,0,6" Text="把下面的地址发给观众（点击行复制）：" />
+                    <ui:ListView x:Name="IpList" MaxHeight="130" FontSize="13"
+                                 SelectionChanged="OnIpSelected" />
+                    <TextBlock Style="{StaticResource DimText}" Margin="1,10,0,0" Text="状态" />
+                    <TextBlock x:Name="HostStatus" Foreground="#FFEAEAF2" FontSize="13" Margin="1,2,0,0" TextWrapping="Wrap"
+                               Text="未启动" />
+                    <ui:Button Appearance="Danger" Margin="0,14,0,0" HorizontalAlignment="Stretch" Click="OnStopSession"
+                               Content="结束会话" />
+                </StackPanel>
+
+                <!-- 观众面板 -->
+                <StackPanel x:Name="ViewerPanel" Visibility="Collapsed">
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="地址" Style="{StaticResource DimText}" VerticalAlignment="Center" />
+                        <ui:TextBox x:Name="UrlBox" Grid.Column="1" TextChanged="OnSettingChanged"
+                                    PlaceholderText="ws://192.168.1.10:8765" />
+                    </Grid>
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="昵称" Style="{StaticResource DimText}" VerticalAlignment="Center" />
+                        <ui:TextBox x:Name="NameBox" Grid.Column="1" TextChanged="OnSettingChanged"
+                                    PlaceholderText="朋友看到的名字" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Ellipse x:Name="ConnDot" Width="10" Height="10" Fill="#FF8888A0" VerticalAlignment="Center" Margin="1,0,6,0" />
+                        <TextBlock x:Name="ViewerStatus" Foreground="#FFEAEAF2" FontSize="13"
+                                   VerticalAlignment="Center" Text="未连接" />
+                    </StackPanel>
+                    <ui:Button Appearance="Primary" Margin="0,14,0,0" HorizontalAlignment="Stretch" Content="连接"
+                               Click="OnConnect" />
+                    <ui:Button Appearance="Secondary" Margin="0,8,0,0" HorizontalAlignment="Stretch" Content="断开并返回"
+                               Click="OnStopSession" />
+                </StackPanel>
+
+                <TextBlock x:Name="HintLine" Style="{StaticResource DimText}" Margin="1,16,0,0" TextWrapping="Wrap"
+                           Text="提示：游戏请用无边框窗口模式（独占全屏会盖住覆盖层）；跨公网请用 Tailscale 等先打通网络。" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ui:FluentWindow>
