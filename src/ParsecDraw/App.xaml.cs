@@ -48,6 +48,12 @@ public partial class App : Application
         if (args.Contains("--smoke"))
         {
             var result = new List<string>();
+            // 冒烟也过一遍真实托盘路径（只测加载，不接管 Close 行为）
+            var smokeTray = new Win32.TrayIcon("ParsecDraw 冒烟");
+            result.Add($"tray-icon={smokeTray.IconLoaded} added={smokeTray.Added}");
+            var trayOk = smokeTray.IconLoaded && smokeTray.Added;
+            smokeTray.Dispose();
+
             var w = new ControlWindow(minimizeToTray: false);
             w.Show();
             w.Dispatcher.BeginInvoke(w.SmokeStartHost);
@@ -92,7 +98,7 @@ public partial class App : Application
                             && !viewerOverlay.MapRectForSmoke.IsEmpty
                             && viewerOverlay.MapRectForSmoke.Width > 0
                             && viewerOverlay.AlignmentRescansForSmoke > 0; // 窗口枚举真实跑过
-                Shutdown(hostInfoSeen && mapOk ? 0 : 1);
+                Shutdown(hostInfoSeen && mapOk && trayOk ? 0 : 1);
             };
             t.Start();
             return;

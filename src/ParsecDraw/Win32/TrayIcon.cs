@@ -33,6 +33,12 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>菜单"退出"。UI 线程回调。</summary>
     public event Action? ExitRequested;
 
+    /// <summary>图标句柄加载成功（冒烟测试观测用）。</summary>
+    internal bool IconLoaded => _hIcon != IntPtr.Zero;
+
+    /// <summary>托盘图标添加成功（冒烟测试观测用）。</summary>
+    internal bool Added => _added;
+
     public TrayIcon(string tooltip)
     {
         // 隐藏消息窗口：托盘回调与菜单命令都落在它上面
@@ -49,14 +55,14 @@ internal sealed class TrayIcon : IDisposable
         _source.AddHook(WndProc);
 
         // 注意：cx=cy=0 + LR_DEFAULTSIZE 的组合在 Win11 上会原生 AV（实测），务必传显式尺寸。
-        // 托盘用小图标规格（SM_CXSMICON/SM_CYSMICON）加载，失败则退回 16px；
-        // 再失败（exe 资源异常）用系统默认应用图标兜底——宁可图标丑也不能没有。
+        // .NET apphost 把应用图标嵌在 RT_GROUP_ICON ID 32512（不是直觉的 1，实测 .NET 10 SDK），
+        // 所以枚举模块第一个图标资源来加载，不赌具体 ID；再失败用系统默认图标兜底。
         var cx = GetSystemMetrics(49 /*SM_CXSMICON*/);
         var cy = GetSystemMetrics(50 /*SM_CYSMICON*/);
         if (cx <= 0 || cy <= 0) { cx = 16; cy = 16; }
-        _hIcon = LoadImageW(GetModuleHandleW(null), (IntPtr)1, 1 /*IMAGE_ICON*/, cx, cy, 0);
+        _hIcon = LoadModuleIcon(cx, cy);
         if (_hIcon == IntPtr.Zero)
-            _hIcon = LoadImageW(GetModuleHandleW(null), (IntPtr)1, 1, 16, 16, 0);
+            _hIcon = LoadModuleIcon(16, 16);
         if (_hIcon == IntPtr.Zero)
             _hIcon = LoadIcon(IntPtr.Zero, (IntPtr)32512 /*IDI_APPLICATION*/);
 
@@ -94,6 +100,21 @@ internal sealed class TrayIcon : IDisposable
             _source.Dispose();
             _source = null;
         }
+    }
+
+    /// <summary>从本进程模块加载第一个 RT_GROUP_ICON（apphost 嵌的应用图标）。</summary>
+    private static IntPtr LoadModuleIcon(int cx, int cy)
+    {
+        var hMod = GetModuleHandleW(null);
+        IntPtr resName = IntPtr.Zero;
+        EnumResourceNamesW(hMod, (IntPtr)14 /*RT_GROUP_ICON*/, (_, _, name, _) =>
+        {
+            resName = name;
+            return false; // 第一个即停
+        }, IntPtr.Zero);
+        return resName == IntPtr.Zero
+            ? IntPtr.Zero
+            : LoadImageW(hMod, resName, 1 /*IMAGE_ICON*/, cx, cy, 0);
     }
 
     private NOTIFYICONDATAW NewData() => new()
@@ -207,4 +228,9 @@ internal sealed class TrayIcon : IDisposable
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr GetModuleHandleW(string? lpModuleName);
+
+    private delegate bool EnumResNameProc(IntPtr hModule, IntPtr lpszType, IntPtr lpszName, IntPtr lParam);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool EnumResourceNamesW(IntPtr hModule, IntPtr lpszType, EnumResNameProc lpEnumFunc, IntPtr lParam);
 }
