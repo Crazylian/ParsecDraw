@@ -119,6 +119,13 @@ internal static partial class WinApi
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool PostMessageWNative(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
+    [LibraryImport("user32.dll", EntryPoint = "WindowFromPoint")]
+    private static partial IntPtr WindowFromPointNative(int x, int y);
+
+    /// <summary>OS 级命中测试：物理屏幕坐标处最顶层的可点击窗口（验证真实鼠标能否到达覆盖层）。</summary>
+    public static IntPtr WindowFromScreenPoint(int x, int y)
+        => WindowFromPointNative(x, y);
+
     /// <summary>向窗口客户区坐标 (x,y) 投递鼠标消息（msg=0x200 移动 / 0x201 左键按下 / 0x202 左键抬起）。</summary>
     public static void PostMouse(IntPtr hWnd, uint msg, int x, int y)
         => PostMessageWNative(hWnd, msg, (IntPtr)1, (IntPtr)(((y & 0xFFFF) << 16) | (x & 0xFFFF)));

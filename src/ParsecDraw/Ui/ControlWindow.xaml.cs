@@ -19,7 +19,7 @@ public partial class ControlWindow : Window
     private OverlayWindow? _overlay;
     private ToolbarWindow? _toolbar;
     private DispatcherTimer? _zOrderTimer;
-    private TrayIcon? _tray;
+    private H.NotifyIcon.TaskbarIcon? _tray;
 
     private int _sessionPort = Session.DefaultPort;
     private int _onlineCount;
@@ -70,19 +70,35 @@ public partial class ControlWindow : Window
 
         if (_minimizeToTray)
         {
-            _tray = new TrayIcon("ParsecDraw — 观战画笔");
-            _tray.OpenRequested += () => Dispatcher.BeginInvoke(() =>
+            _tray = new H.NotifyIcon.TaskbarIcon
             {
-                Show();
-                WindowState = WindowState.Normal;
-                Activate();
-            });
-            _tray.ExitRequested += () => Dispatcher.BeginInvoke(() =>
-            {
-                _reallyExit = true;
-                Close();
-            });
+                ToolTipText = "ParsecDraw — 观战画笔",
+                IconSource = System.Windows.Media.Imaging.BitmapFrame.Create(
+                    new Uri("pack://application:,,,/Assets/app.ico")),
+                ContextMenu = BuildTrayMenu(),
+            };
+            _tray.TrayLeftMouseUp += (_, _) => RestoreFromTray();
         }
+    }
+
+    private void RestoreFromTray()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    private System.Windows.Controls.ContextMenu BuildTrayMenu()
+    {
+        var open = new System.Windows.Controls.MenuItem { Header = "打开主面板" };
+        open.Click += (_, _) => RestoreFromTray();
+        var exit = new System.Windows.Controls.MenuItem { Header = "退出" };
+        exit.Click += (_, _) => Dispatcher.BeginInvoke(() =>
+        {
+            _reallyExit = true;
+            Close();
+        });
+        return new System.Windows.Controls.ContextMenu { Items = { open, exit } };
     }
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -119,7 +135,15 @@ public partial class ControlWindow : Window
         if (showBalloon && !_balloonShown)
         {
             _balloonShown = true;
-            _tray?.ShowInfo("ParsecDraw 仍在运行", "已最小化到托盘：左键点图标恢复面板，右键菜单可退出。");
+            try
+            {
+                _tray?.ShowNotification(title: "ParsecDraw 仍在运行",
+                    message: "已最小化到托盘：左键点图标恢复面板，右键菜单可退出。");
+            }
+            catch
+            {
+                // 通知失败不影响功能
+            }
         }
     }
 

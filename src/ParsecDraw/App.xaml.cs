@@ -49,11 +49,23 @@ public partial class App : Application
         if (args.Contains("--smoke"))
         {
             var result = new List<string>();
-            // 冒烟也过一遍真实托盘路径（只测加载，不接管 Close 行为）
-            var smokeTray = new Win32.TrayIcon("ParsecDraw 冒烟");
-            result.Add($"tray-icon={smokeTray.IconLoaded} added={smokeTray.Added}");
-            var trayOk = smokeTray.IconLoaded && smokeTray.Added;
-            smokeTray.Dispose();
+            // 冒烟也过一遍真实托盘路径（H.NotifyIcon：构造+图标资源加载不抛错）
+            var trayOk = false;
+            try
+            {
+                using var smokeTray = new H.NotifyIcon.TaskbarIcon
+                {
+                    ToolTipText = "ParsecDraw 冒烟",
+                    IconSource = System.Windows.Media.Imaging.BitmapFrame.Create(
+                        new Uri("pack://application:,,,/Assets/app.ico")),
+                };
+                trayOk = smokeTray.IconSource is not null;
+                result.Add($"tray-ok={trayOk}");
+            }
+            catch (Exception ex)
+            {
+                result.Add($"tray-failed={ex.Message}");
+            }
 
             var w = new ControlWindow(minimizeToTray: false);
             w.Show();
@@ -87,6 +99,7 @@ public partial class App : Application
             // 输入走 WndProc 原始消息（PostMessage 直达，与真实鼠标同路），热键走 WM_HOTKEY。
             Session? viewerForInput = null;
             OverlayWindow? overlayForInput = null;
+            var hitOk = false;
             var t3 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
             t3.Tick += (_, _) =>
             {
@@ -96,6 +109,13 @@ public partial class App : Application
                 overlayForInput = viewerOverlay;
                 var h = viewerOverlay.HwndForSmoke;
                 result.Add($"pre-input draw-mode={viewerOverlay.DrawMode} hook={viewerOverlay.HotkeyHookActiveForSmoke}");
+                // OS 级命中测试：真实鼠标点击能否落在覆盖层上（绘画态、非穿透时必须命中）
+                if (h != IntPtr.Zero)
+                {
+                    var hit = WinApi.WindowFromScreenPoint(700, 400);
+                    hitOk = hit == h;
+                    result.Add($"hit-test(700,400)={hit} overlay={h} -> {(hitOk ? "HIT" : "MISS")}");
+                }
                 if (h != IntPtr.Zero)
                 {
                     if (viewerOverlay.DrawMode)
@@ -134,7 +154,8 @@ public partial class App : Application
                               && viewerForInput is not null
                               && viewerForInput.Store.Strokes.Count > 0
                               && overlayForInput.DrawMode == false // 热键后应处于观看态
-                              && overlayForInput.HotkeyHookActiveForSmoke; // LL 钩子装上了
+                              && overlayForInput.HotkeyHookActiveForSmoke // LL 钩子装上了
+                              && hitOk; // OS 级命中：真实点击能落在覆盖层上
                 Shutdown(hostInfoSeen && mapOk && trayOk && inputOk ? 0 : 1);
             };
             t.Start();

@@ -77,10 +77,11 @@ dotnet publish -c Release -r win-x64 --self-contained false \
 
 ## 实现说明
 
-- **技术栈**：C#/WPF（net10.0-windows），零第三方 NuGet 依赖。选 WPF 而非 Electron 是因为覆盖层常驻打游戏的机器：原生实现内存 40-80MB vs Chromium 的 150-250MB
+- **技术栈**：C#/WPF（net10.0-windows）。第三方依赖仅 [H.NotifyIcon.Wpf](https://github.com/HavenDV/H.NotifyIcon)（托盘，Hardcodet 继任者）。选 WPF 而非 Electron 是因为覆盖层常驻打游戏的机器：原生实现内存 40-80MB vs Chromium 的 150-250MB
+- **覆盖层可点击的关键**：`Background="#01000000"`（alpha=1）而非 `Transparent`（alpha=0）——全透明像素在 OS 命中测试里永远不可点击，真实鼠标会直接穿底（v0.1~v0.2.4 的"画不了"终极根因）；冒烟用 WindowFromPoint 做 OS 级命中断言
 - **热键**：低级键盘钩子（WH_KEYBOARD_LL）而非 RegisterHotKey——Parsec 客户端获得焦点时会捕获键盘转发给远端主机，系统热键分发收不到按键，而"看着 Parsec 按热键"正是核心场景；钩子在输入链最前端命中即吞掉，按键也不会串进主机
 - **对齐**：主机在观众接入时单播屏幕分辨率（含游戏内切分辨率的后续通告），观众端 500ms 轮询定位 Parsec 窗口（EnumWindows + 进程名，找到后只查缓存句柄），客户区按主机宽高比做 letterbox 数学分出视频区；对齐计算零分配、只在矩形变化时重建几何
-- **托盘**：`Shell_NotifyIconW` + 隐藏消息窗口 + `TrackPopupMenu` 原生菜单，零依赖手写；图标复用 exe 内嵌的 ApplicationIcon（Win32 资源 ID 1）
+- **托盘**：H.NotifyIcon.Wpf（成熟库）——此前手写的 Shell_NotifyIcon 互操作连踩两坑（Win11 上 LoadImageW 特定参数原生 AV；apphost 图标资源 ID 与直觉不符）
 - **服务端**：`TcpListener` + 手写 RFC6455 握手 + `WebSocket.CreateFromStream`——HttpListener 绑定局域网地址需要管理员配 URL ACL，这条路线免提权；顺带提供一个 HTTP 状态页（浏览器打开主机地址可见 "ParsecDraw WebSocket server is running"）
 - **渲染**：WPF 保留模式。每条笔迹缓存冻结的 `StreamGeometry` + `Pen`，重绘只改透明度不重建几何；没有淡出中的笔迹时渲染循环完全停止（零 CPU）；淡出计时基于各端本地时钟（消息不带时间戳，避免跨机时钟差）
 - **协议**：扁平 JSON 消息（begin/point/end/undo/clear/pin/join/host），坐标归一化 `[0,1]`（相对主机画面）；点批次每 33ms 一发；System.Text.Json source-gen 零反射
