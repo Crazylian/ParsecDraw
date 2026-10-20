@@ -50,6 +50,9 @@ public sealed class Session : IDisposable
     /// <summary>观众端收到主机屏幕分辨率（物理 px），用于对齐/黑边补偿。</summary>
     public event Action<double, double>? HostInfo;
 
+    /// <summary>最近一次收到的主机分辨率（0 = 未知）。晚订阅者（如重连后重建的覆盖层）从这里补拉，不错过单播。</summary>
+    public (double W, double H) LastHostInfo { get; private set; }
+
     public bool IsConnected => !Active || IsHost || _client?.State == ConnState.Connected;
     public bool HasActiveStroke => _active is not null;
 
@@ -230,7 +233,10 @@ public sealed class Session : IDisposable
             if (m.T == MsgTypes.Host)
             {
                 if (m.H is > 0)
+                {
+                    LastHostInfo = (m.W, m.H.Value);
                     HostInfo?.Invoke(m.W, m.H.Value);
+                }
                 return;
             }
             // 观众 LocalOnly 模式：不渲染别人的笔迹（避免与 Parsec 流重复），但协作指令照常生效

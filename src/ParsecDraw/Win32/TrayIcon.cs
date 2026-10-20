@@ -49,13 +49,16 @@ internal sealed class TrayIcon : IDisposable
         _source.AddHook(WndProc);
 
         // 注意：cx=cy=0 + LR_DEFAULTSIZE 的组合在 Win11 上会原生 AV（实测），务必传显式尺寸。
-        // 托盘用小图标规格（SM_CXSMICON/SM_CYSMICON）加载，失败则退回 16px。
+        // 托盘用小图标规格（SM_CXSMICON/SM_CYSMICON）加载，失败则退回 16px；
+        // 再失败（exe 资源异常）用系统默认应用图标兜底——宁可图标丑也不能没有。
         var cx = GetSystemMetrics(49 /*SM_CXSMICON*/);
         var cy = GetSystemMetrics(50 /*SM_CYSMICON*/);
         if (cx <= 0 || cy <= 0) { cx = 16; cy = 16; }
         _hIcon = LoadImageW(GetModuleHandleW(null), (IntPtr)1, 1 /*IMAGE_ICON*/, cx, cy, 0);
         if (_hIcon == IntPtr.Zero)
             _hIcon = LoadImageW(GetModuleHandleW(null), (IntPtr)1, 1, 16, 16, 0);
+        if (_hIcon == IntPtr.Zero)
+            _hIcon = LoadIcon(IntPtr.Zero, (IntPtr)32512 /*IDI_APPLICATION*/);
 
         var n = NewData();
         n.uFlags = NifMessage | NifIcon | NifTip;
@@ -198,6 +201,9 @@ internal sealed class TrayIcon : IDisposable
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int GetSystemMetrics(int nIndex);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr LoadIcon(IntPtr hInst, IntPtr name);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr GetModuleHandleW(string? lpModuleName);

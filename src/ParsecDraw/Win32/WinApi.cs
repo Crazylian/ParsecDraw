@@ -61,7 +61,7 @@ internal static partial class WinApi
         public int X, Y;
     }
 
-    [LibraryImport("user32.dll")]
+    [LibraryImport("user32.dll", EntryPoint = "EnumWindows")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool EnumWindowsNative(EnumWindowsProc lpEnumFunc, IntPtr lParam);
 
@@ -80,11 +80,11 @@ internal static partial class WinApi
     [LibraryImport("user32.dll")]
     private static partial uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
-    [LibraryImport("user32.dll")]
+    [LibraryImport("user32.dll", EntryPoint = "GetClientRect")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool GetClientRectNative(IntPtr hWnd, out RECT lpRect);
 
-    [LibraryImport("user32.dll")]
+    [LibraryImport("user32.dll", EntryPoint = "ClientToScreen")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool ClientToScreenNative(IntPtr hWnd, ref POINT lpPoint);
 

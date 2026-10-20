@@ -182,6 +182,40 @@ public static class SelfTest
             Check(false, "alignment threw: " + ex);
         }
 
+        // ---- 2d. Win32 互操作真实调用（EntryPoint 拼错会在这里直接炸） ----
+        try
+        {
+            var wins = Win32.WinApi.EnumTopLevelWindows();
+            Check(wins.Count > 0, $"win32: enum windows ({wins.Count})");
+
+            var rectOk = false;
+            var dpiOk = false;
+            foreach (var h in wins.Take(30))
+            {
+                if (!rectOk && Win32.WinApi.TryGetClientRect(h, out var rc) && rc.Width > 0 && rc.Height > 0)
+                {
+                    var pt = new Win32.WinApi.POINT();
+                    if (Win32.WinApi.TryClientToScreen(h, ref pt))
+                    {
+                        rectOk = true;
+                        Check(true, $"win32: client rect + to-screen ({rc.Width:0}x{rc.Height:0} at {pt.X},{pt.Y})");
+                    }
+                }
+                if (!dpiOk && Win32.WinApi.GetWindowDpi(h) >= 96)
+                    dpiOk = true;
+                if (rectOk && dpiOk) break;
+            }
+            Check(rectOk, "win32: GetClientRect/ClientToScreen callable");
+            Check(dpiOk, "win32: GetDpiForWindow callable");
+
+            var (sw, sh) = Win32.WinApi.PrimaryScreenSize;
+            Check(sw > 0 && sh > 0, $"win32: primary screen {sw}x{sh}");
+        }
+        catch (Exception ex)
+        {
+            Check(false, "win32 interop threw: " + ex);
+        }
+
         // ---- 3. 网络回环（真实 socket） ----
         try
         {

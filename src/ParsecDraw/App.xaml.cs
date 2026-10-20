@@ -31,8 +31,8 @@ public partial class App : Application
             return;
         }
 
-        // --multi：跳过单实例限制，供同一台机器双开做主机/观众联测
-        if (!args.Contains("--multi"))
+        // --multi / --smoke：跳过单实例限制（双开联测 / 自动化冒烟不被人肉实例挡住）
+        if (!args.Contains("--multi") && !args.Contains("--smoke"))
         {
             _singleInstanceMutex = new Mutex(true, @"Local\ParsecDraw.SingleInstance", out var createdNew);
             if (!createdNew)
@@ -85,11 +85,13 @@ public partial class App : Application
                 {
                     var m = viewerOverlay.MapRectForSmoke;
                     result.Add($"viewer-map={m.X:0.0},{m.Y:0.0},{m.Width:0.0},{m.Height:0.0}");
+                    result.Add($"alignment-rescans={viewerOverlay.AlignmentRescansForSmoke}");
                 }
                 try { File.WriteAllLines(Path.Combine(Path.GetTempPath(), "parsec-draw-smoke.log"), result); } catch { /* 日志尽力 */ }
                 var mapOk = viewerOverlay is not null
                             && !viewerOverlay.MapRectForSmoke.IsEmpty
-                            && viewerOverlay.MapRectForSmoke.Width > 0;
+                            && viewerOverlay.MapRectForSmoke.Width > 0
+                            && viewerOverlay.AlignmentRescansForSmoke > 0; // 窗口枚举真实跑过
                 Shutdown(hostInfoSeen && mapOk ? 0 : 1);
             };
             t.Start();

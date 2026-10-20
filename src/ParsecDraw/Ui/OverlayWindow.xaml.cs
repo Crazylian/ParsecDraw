@@ -60,6 +60,9 @@ public partial class OverlayWindow : Window
     /// <summary>当前映射矩形（冒烟测试观测用）。</summary>
     internal Rect MapRectForSmoke => _map;
 
+    /// <summary>对齐追踪实际执行过的窗口重扫次数（冒烟测试观测用）。</summary>
+    internal int AlignmentRescansForSmoke => _tracker?.RescansForSmoke ?? -1;
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         _hwnd = new WindowInteropHelper(this).Handle;
@@ -68,10 +71,14 @@ public partial class OverlayWindow : Window
 
         if (!_isHost)
         {
-            // 观众端：收到主机分辨率 → 追踪 Parsec 窗口算视频区域
+            // 观众端：收到主机分辨率 → 追踪 Parsec 窗口算视频区域。
+            // 先补拉缓存：分辨率单播可能在覆盖层创建前就已到达（快速连接/重连场景）
             _tracker = new AlignmentTracker(new Size(ActualWidth, ActualHeight));
             _tracker.MapChanged += r => ApplyMap(r);
             _session.HostInfo += OnHostInfo;
+            var cached = _session.LastHostInfo;
+            if (cached.W > 0 && cached.H > 0)
+                _tracker.SetHostSize(cached.W, cached.H);
             _tracker.Start();
         }
 

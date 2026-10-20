@@ -53,6 +53,9 @@ internal sealed class AlignmentTracker : IDisposable
     /// <summary>映射矩形变化（DIP，覆盖层局部坐标）。仅在变化时触发。</summary>
     public event Action<Rect>? MapChanged;
 
+    /// <summary>FindParsecWindow 实际执行次数（冒烟测试观测用）。</summary>
+    internal int RescansForSmoke;
+
     public AlignmentTracker(Size viewport)
     {
         _viewport = viewport;
@@ -79,7 +82,16 @@ internal sealed class AlignmentTracker : IDisposable
 
     private void Recompute()
     {
-        var map = ComputeMap();
+        Rect map;
+        try
+        {
+            map = ComputeMap();
+        }
+        catch (Exception)
+        {
+            // Win32 查询出任何岔子：退回整屏恒等映射（v0.1 行为），绝不让对齐问题打断绘画
+            map = new Rect(0, 0, _viewport.Width, _viewport.Height);
+        }
         if (map == _lastMap) return;
         _lastMap = map;
         MapChanged?.Invoke(map);
@@ -91,7 +103,15 @@ internal sealed class AlignmentTracker : IDisposable
         if (aspect <= 0)
             return new Rect(0, 0, _viewport.Width, _viewport.Height); // 未知 → v0.1 恒等映射
 
-        var area = FindParsecClientArea();
+        Rect? area;
+        try
+        {
+            area = FindParsecClientArea();
+        }
+        catch (Exception)
+        {
+            area = null; // 查询失败与"找不到窗口"同等对待
+        }
         if (area is null)
             return AlignmentMath.FitInto(0, 0, _viewport.Width, _viewport.Height, aspect); // 整屏 letterbox
         return AlignmentMath.FitInto(area.Value.X, area.Value.Y, area.Value.Width, area.Value.Height, aspect);
@@ -140,6 +160,7 @@ internal sealed class AlignmentTracker : IDisposable
     /// <summary>找 Parsec 进程下客户区最大的可见顶层窗口（类名/标题无关）。</summary>
     private IntPtr FindParsecWindow()
     {
+        RescansForSmoke++;
         IntPtr best = IntPtr.Zero;
         double bestArea = 0;
         foreach (var h in WinApi.EnumTopLevelWindows())
