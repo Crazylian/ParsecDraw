@@ -12,12 +12,7 @@ internal static partial class WinApi
     public const int WS_EX_LAYERED = 0x00080000;
     public const int WS_EX_NOACTIVATE = 0x08000000;
 
-    public const int WM_HOTKEY = 0x0312;
-    public const uint MOD_ALT = 0x0001;
-    public const uint MOD_CONTROL = 0x0002;
-    public const uint VK_D = 0x44; // Ctrl+Alt+D 切换绘画/观看
-    public const uint VK_C = 0x43; // Ctrl+Alt+C 清空
-    public const uint VK_P = 0x50; // Ctrl+Alt+P 钉住
+    public const int WM_HOTKEY = 0x0312; // 仅剩冒烟测试投递用；真实热键走 KeyboardHook
 
     public static readonly IntPtr HwndTopmost = new(-1);
 
@@ -34,14 +29,6 @@ internal static partial class WinApi
     [LibraryImport("user32.dll", EntryPoint = "SetWindowPos")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool SetWindowPosNative(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
-
-    [LibraryImport("user32.dll", EntryPoint = "RegisterHotKey", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool RegisterHotKeyNative(IntPtr hWnd, int id, uint fsModifiers, uint vk);
-
-    [LibraryImport("user32.dll", EntryPoint = "UnregisterHotKey")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool UnregisterHotKeyNative(IntPtr hWnd, int id);
 
     // ---- 窗口枚举 / 客户区 / DPI（观众端对齐补偿用）----
 
@@ -155,12 +142,6 @@ internal static partial class WinApi
 
     public static void AssertTopmost(IntPtr hwnd)
         => SetWindowPosNative(hwnd, HwndTopmost, 0, 0, 0, 0, SwpNoSize | SwpNoMove | SwpNoActivate);
-
-    public static bool TryRegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint vk)
-        => RegisterHotKeyNative(hwnd, id, modifiers, vk);
-
-    public static void UnregisterHotKeyId(IntPtr hwnd, int id)
-        => UnregisterHotKeyNative(hwnd, id);
 
     /// <summary>枚举本机所有活动网卡的 IPv4 地址（供主机端展示共享地址）。</summary>
     public static List<string> GetLocalIPv4Addresses()

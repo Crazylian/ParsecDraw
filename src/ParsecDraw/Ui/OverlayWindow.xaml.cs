@@ -27,6 +27,7 @@ public partial class OverlayWindow : Window
     private Rect _map = Rect.Empty;                 // [0,1] 归一化坐标 ⇄ 屏幕区域的映射矩形（DIP）
     private AlignmentTracker? _tracker;             // 观众端对齐追踪
     private DispatcherTimer? _guideFadeTimer;
+    private KeyboardHook? _keys;                    // 低级键盘钩子（Parsec 焦点下也能收到热键）
 
     /// <summary>绘画/观看态变化（工具栏指示灯用）。</summary>
     public event Action<bool>? DrawModeChanged;
@@ -44,7 +45,7 @@ public partial class OverlayWindow : Window
         Height = SystemParameters.PrimaryScreenHeight;
 
         Loaded += OnLoaded;
-        Closed += (_, _) => { ReleaseHotkeys(); _tracker?.Dispose(); };
+        Closed += (_, _) => { _keys?.Dispose(); _tracker?.Dispose(); };
         // 鼠标输入不走 WPF 事件，直接在 WndProc 处理原始消息：
         // 透明覆盖层的命中测试怪癖全部绕开，且可用 PostMessage 无头自测。
     }
@@ -59,6 +60,9 @@ public partial class OverlayWindow : Window
 
     /// <summary>覆盖层窗口句柄（冒烟测试合成输入用）。</summary>
     internal IntPtr HwndForSmoke => _hwnd;
+
+    /// <summary>低级键盘钩子安装成功（冒烟测试观测用）。</summary>
+    internal bool HotkeyHookActiveForSmoke => _keys?.Active ?? false;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -85,6 +89,32 @@ public partial class OverlayWindow : Window
         Cursor = _drawMode ? Cursors.Cross : Cursors.Arrow;
 
         RegisterHotkeys();
+    }
+
+    /// <summary>低级键盘钩子接管热键（RegisterHotKey 在 Parsec 捕获键盘时收不到）。</summary>
+    private void RegisterHotkeys()
+    {
+        _keys = new KeyboardHook();
+        if (!_keys.Active) return; // 极端失败：工具栏按钮仍可用
+        _keys.Hotkey += HandleHotkey;
+        HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
+    }
+
+    private void HandleHotkey(uint vk)
+    {
+        switch (vk)
+        {
+            case 0x44: // D
+                if (_isHost) ToggleVisibility();
+                else ToggleDrawMode();
+                break;
+            case 0x43: // C
+                _session.ClearAll();
+                break;
+            case 0x50: // P
+                _session.PinAll();
+                break;
+        }
     }
 
     private void OnHostInfo(double w, double h)
@@ -177,42 +207,19 @@ public partial class OverlayWindow : Window
 
     // ---- 全局热键 ----
 
-    private void RegisterHotkeys()
-    {
-        WinApi.TryRegisterHotKey(_hwnd, HotkeyIdToggle, WinApi.MOD_CONTROL | WinApi.MOD_ALT, WinApi.VK_D);
-        WinApi.TryRegisterHotKey(_hwnd, HotkeyIdClear, WinApi.MOD_CONTROL | WinApi.MOD_ALT, WinApi.VK_C);
-        WinApi.TryRegisterHotKey(_hwnd, HotkeyIdPin, WinApi.MOD_CONTROL | WinApi.MOD_ALT, WinApi.VK_P);
-        HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
-    }
-
-    private void ReleaseHotkeys()
-    {
-        if (_hwnd == IntPtr.Zero) return;
-        WinApi.UnregisterHotKeyId(_hwnd, HotkeyIdToggle);
-        WinApi.UnregisterHotKeyId(_hwnd, HotkeyIdClear);
-        WinApi.UnregisterHotKeyId(_hwnd, HotkeyIdPin);
-    }
-
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == WinApi.WM_HOTKEY)
         {
-            switch (wParam.ToInt32())
+            // 冒烟测试投递路径（id → vk），与真实钩子路径汇合
+            HandleHotkey(wParam.ToInt32() switch
             {
-                case HotkeyIdToggle:
-                    if (_isHost) ToggleVisibility();
-                    else ToggleDrawMode();
-                    handled = true;
-                    break;
-                case HotkeyIdClear:
-                    _session.ClearAll();
-                    handled = true;
-                    break;
-                case HotkeyIdPin:
-                    _session.PinAll();
-                    handled = true;
-                    break;
-            }
+                HotkeyIdToggle => 0x44,
+                HotkeyIdClear => 0x43,
+                HotkeyIdPin => 0x50,
+                _ => 0,
+            });
+            handled = true;
         }
         else if (!_isHost && msg is 0x0200 or 0x0201 or 0x0202 or 0x0205)
         {

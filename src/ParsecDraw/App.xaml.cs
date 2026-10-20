@@ -95,7 +95,7 @@ public partial class App : Application
                 viewerForInput = viewer;
                 overlayForInput = viewerOverlay;
                 var h = viewerOverlay.HwndForSmoke;
-                result.Add($"pre-input draw-mode={viewerOverlay.DrawMode}");
+                result.Add($"pre-input draw-mode={viewerOverlay.DrawMode} hook={viewerOverlay.HotkeyHookActiveForSmoke}");
                 if (h != IntPtr.Zero)
                 {
                     if (viewerOverlay.DrawMode)
@@ -133,7 +133,8 @@ public partial class App : Application
                 var inputOk = overlayForInput is not null
                               && viewerForInput is not null
                               && viewerForInput.Store.Strokes.Count > 0
-                              && overlayForInput.DrawMode == false; // 热键后应处于观看态
+                              && overlayForInput.DrawMode == false // 热键后应处于观看态
+                              && overlayForInput.HotkeyHookActiveForSmoke; // LL 钩子装上了
                 Shutdown(hostInfoSeen && mapOk && trayOk && inputOk ? 0 : 1);
             };
             t.Start();

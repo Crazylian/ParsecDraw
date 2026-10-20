@@ -78,6 +78,7 @@ dotnet publish -c Release -r win-x64 --self-contained false \
 ## 实现说明
 
 - **技术栈**：C#/WPF（net10.0-windows），零第三方 NuGet 依赖。选 WPF 而非 Electron 是因为覆盖层常驻打游戏的机器：原生实现内存 40-80MB vs Chromium 的 150-250MB
+- **热键**：低级键盘钩子（WH_KEYBOARD_LL）而非 RegisterHotKey——Parsec 客户端获得焦点时会捕获键盘转发给远端主机，系统热键分发收不到按键，而"看着 Parsec 按热键"正是核心场景；钩子在输入链最前端命中即吞掉，按键也不会串进主机
 - **对齐**：主机在观众接入时单播屏幕分辨率（含游戏内切分辨率的后续通告），观众端 500ms 轮询定位 Parsec 窗口（EnumWindows + 进程名，找到后只查缓存句柄），客户区按主机宽高比做 letterbox 数学分出视频区；对齐计算零分配、只在矩形变化时重建几何
 - **托盘**：`Shell_NotifyIconW` + 隐藏消息窗口 + `TrackPopupMenu` 原生菜单，零依赖手写；图标复用 exe 内嵌的 ApplicationIcon（Win32 资源 ID 1）
 - **服务端**：`TcpListener` + 手写 RFC6455 握手 + `WebSocket.CreateFromStream`——HttpListener 绑定局域网地址需要管理员配 URL ACL，这条路线免提权；顺带提供一个 HTTP 状态页（浏览器打开主机地址可见 "ParsecDraw WebSocket server is running"）
@@ -98,7 +99,8 @@ src/ParsecDraw/
 ├── Ui/AlignmentTracker.cs  # 观众端 Parsec 窗口追踪 + letterbox 对齐
 ├── Ui/ToolbarWindow.*      # 悬浮工具栏
 ├── Ui/ControlWindow.*      # 控制窗
-├── Win32/WinApi.cs         # 点击穿透 / 热键 / z 序 / 窗口枚举
+├── Win32/WinApi.cs         # 点击穿透 / z 序 / 窗口枚举
+├── Win32/KeyboardHook.cs   # 低级键盘钩子热键（Parsec 焦点下可用）
 ├── Win32/TrayIcon.cs       # 系统托盘（Shell_NotifyIcon 互操作）
 ├── Session.cs              # 本地输入 ⇄ Store ⇄ 网络 的中枢
 ├── Assets/app.ico          # 应用图标（tools/make_icon.py 生成）
