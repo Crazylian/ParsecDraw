@@ -12,46 +12,82 @@
         ResizeMode="NoResize"
         MouseEnter="OnToolbarMouseEnter"
         MouseLeave="OnToolbarMouseLeave">
-    <Border Background="#F01E1E28" CornerRadius="12" Padding="10,8"
-            BorderBrush="#3AFFFFFF" BorderThickness="1"
+    <!-- 横向画具托盘：纯图标单行（状态点｜工具｜画具参数｜动作｜完成），文案全部走 ToolTip -->
+    <Border Background="#EE16161E" CornerRadius="14" Padding="8"
+            BorderBrush="#36FFFFFF" BorderThickness="1"
             MouseLeftButtonDown="OnDragMove">
-        <StackPanel>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal">
 
-                <!-- 模式指示 -->
-                <Border x:Name="ModeBadge" Background="#334DA3FF" CornerRadius="6" Padding="8,4" Margin="0,0,10,0"
-                        VerticalAlignment="Center">
-                    <TextBlock x:Name="ModeText" Foreground="#FFBFD8FF" FontSize="12" FontWeight="SemiBold"
-                               VerticalAlignment="Center" Text="绘画" />
-                </Border>
+            <!-- 状态点：绿=绘画中，蓝=观看中/主机 -->
+            <Grid Width="14" Height="34" Margin="0,0,6,0">
+                <Ellipse x:Name="ModeGlow" Width="13" Height="13" Fill="#FF4DA3FF" Opacity="0.35" />
+                <Ellipse x:Name="ModeDot" Width="7" Height="7" Fill="#FF4DA3FF" />
+            </Grid>
+            <TextBlock x:Name="ModeText" Text="主机" FontSize="12" Foreground="#FFC6C6D8"
+                       VerticalAlignment="Center" Margin="0,0,4,0" Visibility="Collapsed" />
 
-                <!-- 观众端绘制工具：画笔/激光/橡皮 三选一 -->
-                <StackPanel x:Name="DrawTools" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="BtnPen" Content="✏ 画笔" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnPen" />
-                    <Button x:Name="BtnLaser" Content="◆ 激光" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnLaser" />
-                    <Button x:Name="BtnEraser" Content="▢ 橡皮" Style="{StaticResource TbTool}" Margin="0,0,0,0" Click="OnEraser"
-                            ToolTip="整笔擦除，只能擦自己的笔迹（拖动扫过要擦的线）" />
-
-                    <Rectangle Style="{StaticResource TbSep}" />
-
-                    <StackPanel x:Name="ColorsPanel" Orientation="Horizontal" VerticalAlignment="Center" />
-                    <StackPanel x:Name="WidthsPanel" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,2,0" />
-                    <Button x:Name="BtnUndo" Content="↶ 撤销" Style="{StaticResource TbTool}" Click="OnUndo" />
-                </StackPanel>
-
-                <Rectangle x:Name="SepCommon" Style="{StaticResource TbSep}" />
-
-                <!-- 通用动作：钉住模式（开关样式）/ 清空 -->
-                <Button x:Name="BtnPin" Content="◎ 钉住" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnPin"
-                        ToolTip="开启后新画的笔迹持久保留，关闭后恢复自动淡出（Ctrl+Alt+P）" />
-                <Button x:Name="BtnClear" Content="✕ 清空" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnClear" />
-                <Button x:Name="BtnToggle" Content="暂停" Style="{StaticResource TbTool}" Margin="0,0,4,0" Click="OnToggle" />
-
-                <!-- 观众端：退出绘画态 -->
-                <Button x:Name="BtnExitDraw" Content="完成" Style="{StaticResource TbToolPrimary}" Click="OnExitDraw" />
+            <!-- 观众端绘制工具：画笔/激光/橡皮 三选一 -->
+            <StackPanel x:Name="ToolsPanel" Orientation="Horizontal">
+                <Button x:Name="BtnPen" Style="{StaticResource TbToolBtn}" Margin="0,0,3,0" Click="OnPen"
+                        ToolTip="画笔（自由绘制）">
+                    <Path Style="{StaticResource TbIcon}" Data="{StaticResource GeoPen}" />
+                </Button>
+                <Button x:Name="BtnLaser" Style="{StaticResource TbToolBtn}" Margin="0,0,3,0" Click="OnLaser"
+                        ToolTip="激光笔（松手即散，用于指点）">
+                    <Grid>
+                        <Path Style="{StaticResource TbIcon}" Data="{StaticResource GeoLaser}" />
+                        <Ellipse Width="4.4" Height="4.4"
+                                 Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Grid>
+                </Button>
+                <Button x:Name="BtnEraser" Style="{StaticResource TbToolBtn}" Click="OnEraser"
+                        ToolTip="整笔擦除，只能擦自己的笔迹（拖动扫过要擦的线）">
+                    <Path Style="{StaticResource TbIcon}" Data="{StaticResource GeoEraser}" />
+                </Button>
             </StackPanel>
-            <TextBlock x:Name="HintText" Foreground="#FF8A8AA2" FontSize="11" Margin="2,6,0,0" TextWrapping="Wrap"
-                       Text="" />
+
+            <Rectangle x:Name="SepTools" Style="{StaticResource TbSep}" />
+
+            <!-- 画具参数：色点 / 粗细（代码构建） -->
+            <StackPanel x:Name="ColorsPanel" Orientation="Horizontal" VerticalAlignment="Center" />
+            <Rectangle x:Name="SepColors" Style="{StaticResource TbSep}" />
+            <StackPanel x:Name="WidthsPanel" Orientation="Horizontal" VerticalAlignment="Center" />
+
+            <!-- 动作：暂停(主机) / 撤销 / 钉住 / 清空 -->
+            <Rectangle x:Name="SepWidths" Style="{StaticResource TbSep}" />
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="BtnToggle" Style="{StaticResource TbToolBtn}" Margin="0,0,3,0" Click="OnToggle"
+                        ToolTip="暂停显示笔迹（Ctrl+Alt+D）" Visibility="Collapsed">
+                    <Path x:Name="ToggleIcon" Style="{StaticResource TbIcon}" Data="{StaticResource GeoPause}" />
+                </Button>
+                <Button x:Name="BtnUndo" Style="{StaticResource TbToolBtn}" Margin="0,0,3,0" Click="OnUndo"
+                        ToolTip="撤销我上一笔（Ctrl+Alt+Z）">
+                    <Path Style="{StaticResource TbIcon}" Data="{StaticResource GeoUndo}" />
+                </Button>
+                <Button x:Name="BtnPin" Style="{StaticResource TbToolBtn}" Margin="0,0,3,0" Click="OnPin"
+                        ToolTip="钉住模式（开启后新笔迹持久保留，Ctrl+Alt+P）">
+                    <Path Style="{StaticResource TbIcon}" Data="{StaticResource GeoPin}" />
+                </Button>
+                <Button x:Name="BtnClear" Style="{StaticResource TbToolBtn}" Click="OnClear"
+                        ToolTip="清空全部笔迹（Ctrl+Alt+C）">
+                    <Path Style="{StaticResource TbIcon}" Data="{StaticResource GeoClear}" />
+                </Button>
+            </StackPanel>
+
+            <Rectangle x:Name="SepActions" Style="{StaticResource TbSep}" />
+
+            <!-- 观众端：绘画态=完成(勾) / 观看态=开始绘画(三角) -->
+            <Button x:Name="BtnExitDraw" Style="{StaticResource TbDoneBtn}" Click="OnExitDraw"
+                    ToolTip="完成绘画，回到观看（Ctrl+Alt+D / 右键）">
+                <Path x:Name="DoneIcon" Style="{StaticResource TbIcon}" StrokeThickness="1.6"
+                      Data="{StaticResource GeoCheck}" />
+            </Button>
+
+            <!-- 帮助：热键速查（悬停显示，替代原底部提示行） -->
+            <Button x:Name="BtnHelp" Style="{StaticResource TbToolBtn}" Width="28" Height="28" Margin="4,0,0,0"
+                    Foreground="#FF8A8AA2" ToolTip="快捷键">
+                <Path Style="{StaticResource TbIcon}" Width="14" Height="14" Data="{StaticResource GeoHelp}" />
+            </Button>
         </StackPanel>
     </Border>
 </Window>

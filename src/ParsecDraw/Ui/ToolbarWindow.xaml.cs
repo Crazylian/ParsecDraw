@@ -11,16 +11,36 @@ using ParsecDraw.Protocol;
 namespace ParsecDraw.Ui;
 
 /// <summary>
-/// 悬浮迷你工具栏：置顶、可拖动、永不点击穿透（z 序压在覆盖层之上）。
+/// 悬浮画具托盘（横向版）：置顶、可拖动、永不点击穿透（z 序压在覆盖层之上）。
+/// 纯图标单行布局，文案全部走 ToolTip；靠边缩入沿用顶部停靠。
 /// </summary>
 public partial class ToolbarWindow : Window
 {
     private static readonly string[] ColorChoices = { "#FFFFFF", "#FF4757", "#FFD32A", "#2ED573", "#4DA3FF" };
+    private static readonly string[] ColorNames = { "白色", "红色", "黄色", "绿色", "蓝色" };
     private static readonly double[] WidthChoices = { 3, 6, 12 };
+    private static readonly string[] WidthNames = { "细", "中", "粗" };
+
+    // ---- 视觉常量（冻结复用；不在交互路径上新建画刷） ----
+    private static readonly Brush AccentFill = Frozen(Color.FromRgb(0x4D, 0xA3, 0xFF));
+    private static readonly Brush AccentSoft = Frozen(Color.FromArgb(0x29, 0x4D, 0xA3, 0xFF));
+    private static readonly Brush AccentLine = Frozen(Color.FromArgb(0x61, 0x4D, 0xA3, 0xFF));
+    private static readonly Brush InkDark = Frozen(Color.FromRgb(0x0F, 0x15, 0x24));
+    private static readonly Brush IconDim = Frozen(Color.FromRgb(0xC9, 0xC9, 0xDB));
+    private static readonly Brush ModeGreen = Frozen(Color.FromRgb(0x2E, 0xD5, 0x73));
+    private static readonly Brush ModeBlue = Frozen(Color.FromRgb(0x4D, 0xA3, 0xFF));
+    private static readonly Brush RingBrush = Frozen(Color.FromRgb(0xEA, 0xEA, 0xF2));
+    private static readonly Brush DotIdle = Frozen(Color.FromRgb(0xD6, 0xD6, 0xE4));
+
+    private static Brush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
 
     private readonly Session _session;
     private readonly OverlayWindow _overlay;
-    private readonly bool _isHost;
 
     private Button? _selectedColor;
     private Button? _selectedWidth;
@@ -39,7 +59,6 @@ public partial class ToolbarWindow : Window
         InitializeComponent();
         _session = session;
         _overlay = overlay;
-        _isHost = isHost;
 
         // 屏幕顶部中央
         Loaded += (_, _) =>
@@ -50,16 +69,23 @@ public partial class ToolbarWindow : Window
 
         if (isHost)
         {
-            // 主机不能画：隐藏绘制工具，显示状态
-            ModeText.Text = "主机";
-            DrawTools.Visibility = Visibility.Collapsed;
+            // 主机不能画：只留 状态点+主机 ｜ 暂停/钉住/清空 ｜ 帮助
+            ModeText.Visibility = Visibility.Visible;
+            ToolsPanel.Visibility = Visibility.Collapsed;
+            SepTools.Visibility = Visibility.Collapsed;
+            ColorsPanel.Visibility = Visibility.Collapsed;
+            SepColors.Visibility = Visibility.Collapsed;
+            WidthsPanel.Visibility = Visibility.Collapsed;
+            SepWidths.Visibility = Visibility.Collapsed;
+            BtnUndo.Visibility = Visibility.Collapsed;
+            SepActions.Visibility = Visibility.Collapsed;
             BtnExitDraw.Visibility = Visibility.Collapsed;
-            HintText.Text = "覆盖层已点击穿透，不影响游戏。Ctrl+Alt+D 暂停/显示笔迹，Ctrl+Alt+P 钉住模式，Ctrl+Alt+C 清空";
+            BtnToggle.Visibility = Visibility.Visible;
+            BtnHelp.ToolTip = "覆盖层已点击穿透，不影响游戏。\nCtrl+Alt+D 暂停/显示笔迹 · Ctrl+Alt+P 钉住模式 · Ctrl+Alt+C 清空";
             _overlay.Visibility = Visibility.Visible;
         }
         else
         {
-            BtnToggle.Visibility = Visibility.Collapsed;
             BuildColorButtons();
             BuildWidthButtons();
             SetTool(_session.Tool);
@@ -76,36 +102,36 @@ public partial class ToolbarWindow : Window
 
     private void UpdatePinUi()
     {
-        BtnPin.Content = _session.PinMode ? "◉ 钉住" : "◎ 钉住";
-        SelectVisual(BtnPin, _session.PinMode); // 与工具选中一致的开关样式
+        var on = _session.PinMode;
+        BtnPin.Foreground = on ? AccentFill : IconDim;
+        BtnPin.Background = on ? AccentSoft : Brushes.Transparent;
+        BtnPin.BorderBrush = on ? AccentLine : Brushes.Transparent;
+        BtnPin.ToolTip = on
+            ? "钉住已开启：新笔迹持久保留（Ctrl+Alt+P 关闭）"
+            : "钉住模式：开启后新笔迹持久保留（Ctrl+Alt+P）";
     }
 
     // ---- 构建 ----
 
     private void BuildColorButtons()
     {
-        foreach (var hex in ColorChoices)
+        for (var i = 0; i < ColorChoices.Length; i++)
         {
-            var dot = new Ellipse
-            {
-                Width = 14,
-                Height = 14,
-                Fill = BrushCache.Get(hex),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
+            var hex = ColorChoices[i];
             var btn = new Button
             {
-                Content = dot,
-                Style = (Style)FindResource("TbButton"),
+                Style = (Style)FindResource("TbDotBtn"),
                 Tag = hex,
-                Margin = new Thickness(0, 0, 4, 0),
+                ToolTip = ColorNames[i],
+                Margin = new Thickness(0, 0, i == ColorChoices.Length - 1 ? 0 : 8, 0),
             };
+            btn.Content = DotWithRing(BrushCache.Get(hex), 15, 22);
             btn.Click += (_, _) => SelectColor(btn, hex);
             ColorsPanel.Children.Add(btn);
             if (hex == _session.ColorHex)
             {
                 _selectedColor = btn;
-                Highlight(btn);
+                Ring(btn, true);
             }
         }
         if (_selectedColor is null)
@@ -120,63 +146,70 @@ public partial class ToolbarWindow : Window
         for (var i = 0; i < WidthChoices.Length; i++)
         {
             var w = WidthChoices[i];
-            var dot = new Ellipse
-            {
-                Width = 5 + i * 4,
-                Height = 5 + i * 4,
-                Fill = Brushes.White,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
             var btn = new Button
             {
-                Content = dot,
-                Style = (Style)FindResource("TbButton"),
+                Style = (Style)FindResource("TbDotBtn"),
                 Tag = w,
-                Margin = new Thickness(0, 0, 4, 0),
+                ToolTip = WidthNames[i],
+                Margin = new Thickness(0, 0, i == WidthChoices.Length - 1 ? 0 : 9, 0),
             };
+            btn.Content = DotWithRing(DotIdle, 6 + i * 3, 20);
             btn.Click += (_, _) => SelectWidth(btn, w);
             WidthsPanel.Children.Add(btn);
             if (Math.Abs(w - _session.BaseWidth) < 0.1)
             {
                 _selectedWidth = btn;
-                Highlight(btn);
+                SelectWidthVisual(btn, true);
             }
         }
-        _selectedWidth ??= (Button)WidthsPanel.Children[1];
-        if (_selectedWidth.BorderThickness != new Thickness(2))
-            Highlight(_selectedWidth);
+        if (_selectedWidth is null)
+        {
+            _selectedWidth = (Button)WidthsPanel.Children[1];
+            SelectWidth(_selectedWidth, WidthChoices[1]);
+        }
     }
+
+    /// <summary>裸点 + 选中光环；Children[0]=环（Visibility 由 Ring 切换），Children[1]=点。</summary>
+    private static Grid DotWithRing(Brush dotFill, double dotSize, double ringSize)
+    {
+        var ring = new Ellipse
+        {
+            Width = ringSize,
+            Height = ringSize,
+            Stroke = RingBrush,
+            StrokeThickness = 2,
+            Visibility = Visibility.Collapsed,
+        };
+        var dot = new Ellipse { Width = dotSize, Height = dotSize, Fill = dotFill };
+        var g = new Grid();
+        g.Children.Add(ring);
+        g.Children.Add(dot);
+        return g;
+    }
+
+    private static void Ring(Button b, bool on)
+        => ((Ellipse)((Grid)b.Content).Children[0]).Visibility = on ? Visibility.Visible : Visibility.Collapsed;
 
     private void SelectColor(Button btn, string hex)
     {
         _session.ColorHex = hex;
         _selectedColor = btn;
-        foreach (Button b in ColorsPanel.Children) Reset(b);
-        Highlight(btn);
+        foreach (Button b in ColorsPanel.Children) Ring(b, b == btn);
     }
 
     private void SelectWidth(Button btn, double w)
     {
         _session.BaseWidth = w;
         _selectedWidth = btn;
-        foreach (Button b in WidthsPanel.Children) Reset(b);
-        Highlight(btn);
+        foreach (Button b in WidthsPanel.Children) SelectWidthVisual(b, b == btn);
     }
 
-    private static void Reset(Button b)
+    private static void SelectWidthVisual(Button b, bool on)
     {
-        b.BorderThickness = new Thickness(1);
-        b.BorderBrush = (Brush)FindResourceInternal("TbBorder");
+        Ring(b, on);
+        // 粗细点选中时提亮为纯白，未选中为灰白
+        ((Ellipse)((Grid)b.Content).Children[1]).Fill = on ? Brushes.White : DotIdle;
     }
-
-    private static void Highlight(Button b)
-    {
-        b.BorderThickness = new Thickness(2);
-        b.BorderBrush = (Brush)FindResourceInternal("TbAccent");
-    }
-
-    // 资源在 App 级字典，FindResource 走元素树即可
-    private static object FindResourceInternal(string key) => Application.Current.TryFindResource(key) is { } v ? v : Brushes.Gray;
 
     // ---- 状态 ----
 
@@ -184,17 +217,16 @@ public partial class ToolbarWindow : Window
 
     private void UpdateModeUi(bool drawing)
     {
-        ModeText.Text = drawing ? "绘画中" : "观看中";
-        ModeBadge.Background = drawing
-            ? new SolidColorBrush(Color.FromArgb(0x44, 0x2E, 0xD5, 0x73))
-            : new SolidColorBrush(Color.FromArgb(0x33, 0x4D, 0xA3, 0xFF));
-        ModeText.Text += drawing ? " · 右键退出" : "";
-        // 切换按钮两个态都在：观看态显示"开始绘画"（此前被藏掉，提示文案却让人点它）
-        BtnExitDraw.Visibility = Visibility.Visible;
-        BtnExitDraw.Content = drawing ? "完成" : "开始绘画";
-        HintText.Text = drawing
-            ? "Ctrl+Alt+D / 右键 = 退出绘画态（穿透回 Parsec）；Ctrl+Alt+P 钉住模式（开=新笔迹保留），Ctrl+Alt+C 清空，Ctrl+Alt+Z 撤销"
-            : "当前穿透：鼠标直接操作 Parsec 窗口。Ctrl+Alt+D 或点\"开始绘画\"进入绘画态";
+        var c = drawing ? ModeGreen : ModeBlue;
+        ModeDot.Fill = c;
+        ModeGlow.Fill = c;
+        // 完成键：绘画态=勾（完成）；观看态=三角（开始绘画，填充更醒目）
+        DoneIcon.Data = (StreamGeometry)FindResource(drawing ? "GeoCheck" : "GeoPlay");
+        DoneIcon.Fill = drawing ? Brushes.Transparent : InkDark;
+        BtnExitDraw.ToolTip = drawing ? "完成绘画，回到观看（Ctrl+Alt+D / 右键）" : "开始绘画（Ctrl+Alt+D）";
+        BtnHelp.ToolTip = drawing
+            ? "绘画中：鼠标直接画线\n右键 / Ctrl+Alt+D = 退出绘画（穿透回 Parsec）\nCtrl+Alt+P 钉住 · Ctrl+Alt+Z 撤销 · Ctrl+Alt+C 清空"
+            : "观看中：鼠标直通 Parsec 窗口\nCtrl+Alt+D 或点右侧蓝色按钮开始绘画";
     }
 
     public void ReassertAboveOverlay()
@@ -295,18 +327,17 @@ public partial class ToolbarWindow : Window
     private void SetTool(ToolKind kind)
     {
         _session.Tool = kind;
-        SelectVisual(BtnPen, kind == ToolKind.Pen);
-        SelectVisual(BtnLaser, kind == ToolKind.Laser);
-        SelectVisual(BtnEraser, kind == ToolKind.Eraser);
+        ToolVisual(BtnPen, kind == ToolKind.Pen);
+        ToolVisual(BtnLaser, kind == ToolKind.Laser);
+        ToolVisual(BtnEraser, kind == ToolKind.Eraser);
         _overlay.UpdateToolCursor();
     }
 
-    /// <summary>工具按钮选中态：选中=蓝色描边+淡蓝填充，未选=透明。</summary>
-    private static void SelectVisual(Button b, bool on)
+    /// <summary>工具选中态：选中=品牌蓝实底+深色图标，未选=透明底。</summary>
+    private static void ToolVisual(Button b, bool on)
     {
-        b.Background = on ? new SolidColorBrush(Color.FromArgb(0x3A, 0x4D, 0xA3, 0xFF)) : Brushes.Transparent;
-        b.BorderBrush = on ? new SolidColorBrush(Color.FromRgb(0x4D, 0xA3, 0xFF)) : new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
-        b.Foreground = on ? Brushes.White : new SolidColorBrush(Color.FromRgb(0xD6, 0xD6, 0xE4));
+        b.Background = on ? AccentFill : Brushes.Transparent;
+        b.Foreground = on ? InkDark : IconDim;
     }
 
     private void OnUndo(object sender, RoutedEventArgs e) => _session.UndoMine();
@@ -317,10 +348,11 @@ public partial class ToolbarWindow : Window
 
     private void OnToggle(object sender, RoutedEventArgs e)
     {
-        // 主机端：暂停/恢复显示笔迹
+        // 主机端：暂停/恢复显示笔迹（图标随状态切换）
         _overlay.ToggleVisibility();
         _paused = !_paused;
-        BtnToggle.Content = _paused ? "显示" : "暂停";
+        ToggleIcon.Data = (StreamGeometry)FindResource(_paused ? "GeoEye" : "GeoPause");
+        BtnToggle.ToolTip = _paused ? "恢复显示笔迹" : "暂停显示笔迹（Ctrl+Alt+D）";
     }
 
     private void OnExitDraw(object sender, RoutedEventArgs e)
