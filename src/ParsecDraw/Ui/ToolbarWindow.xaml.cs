@@ -31,6 +31,7 @@ public partial class ToolbarWindow : Window
     private const double DockPeek = 12;      // 缩入后露出多少像素
     private bool _docked;
     private bool _dragging;
+    private bool _animating;                 // 滑动动画进行中：忽略合成的 Enter/Leave
     private DispatcherTimer? _retractTimer;
 
     public ToolbarWindow(Session session, OverlayWindow overlay, bool isHost)
@@ -233,21 +234,21 @@ public partial class ToolbarWindow : Window
     private void OnToolbarMouseEnter(object sender, MouseEventArgs e)
     {
         _retractTimer?.Stop();
-        if (_docked)
-        {
-            _docked = false;
-            SlideTo(4);
-        }
+        // 动画期间的合成事件不处理；绘画中（左键按住）不弹出——
+        // 否则在屏幕顶部画线来回扫过把手，工具栏会不停弹出-缩入抖动
+        if (_animating || !_docked || Mouse.LeftButton == MouseButtonState.Pressed) return;
+        _docked = false;
+        SlideTo(4);
     }
 
     private void OnToolbarMouseLeave(object sender, MouseEventArgs e)
     {
-        if (_dragging || Top > DockZone) return;
-        // 离开 1.2s 后再缩（避免来回抖）
+        if (_animating || _dragging || Top > DockZone) return;
+        // 离开 1.2s 后再缩（避免来回抖）；绘画中不缩（笔划过工具栏下方别塌）
         _retractTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1.2), DispatcherPriority.Background, (_, _) =>
         {
             _retractTimer!.Stop();
-            if (_dragging || IsMouseOver) return;
+            if (_dragging || _animating || IsMouseOver || Mouse.LeftButton == MouseButtonState.Pressed) return;
             _docked = true;
             SlideTo(-(ActualHeight - DockPeek));
         }, Dispatcher);
@@ -257,10 +258,12 @@ public partial class ToolbarWindow : Window
 
     private void SlideTo(double targetTop)
     {
+        _animating = true;
         var anim = new System.Windows.Media.Animation.DoubleAnimation(targetTop, TimeSpan.FromMilliseconds(160))
         {
             EasingFunction = new System.Windows.Media.Animation.QuadraticEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
         };
+        anim.Completed += (_, _) => _animating = false;
         BeginAnimation(TopProperty, anim);
     }
 
