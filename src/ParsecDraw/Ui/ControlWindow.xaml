@@ -21,28 +21,46 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Disabled">
             <StackPanel Margin="20,6,20,18">
 
-                <!-- 角色选择 -->
-                <StackPanel x:Name="RolePanel">
-                    <ui:CardAction x:Name="BtnHost" Margin="0,0,0,10" Click="OnChooseHost">
-                        <ui:CardAction.Icon>
-                            <ui:SymbolIcon Symbol="PersonBoard24" />
-                        </ui:CardAction.Icon>
-                        <StackPanel>
-                            <TextBlock Text="我是主机（被观看 · 玩游戏）" FontWeight="SemiBold" FontSize="13" />
-                            <TextBlock FontSize="11" Foreground="#FF8A8AA2" Margin="1,3,0,0"
-                                       Text="启动共享服务，屏幕上显示笔迹覆盖层并随 Parsec 串流出去" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </ui:CardAction>
-                    <ui:CardAction x:Name="BtnViewer" Click="OnChooseViewer">
-                        <ui:CardAction.Icon>
-                            <ui:SymbolIcon Symbol="InkingTool20" />
-                        </ui:CardAction.Icon>
-                        <StackPanel>
-                            <TextBlock Text="我是观众（画画 · 看别人玩）" FontWeight="SemiBold" FontSize="13" />
-                            <TextBlock FontSize="11" Foreground="#FF8A8AA2" Margin="1,3,0,0"
-                                       Text="连接主机，在 Parsec 画面上直接画线指点" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </ui:CardAction>
+                <!-- 角色选择：左右并排双卡，悬停亮品牌蓝（与工具栏同一套视觉） -->
+                <StackPanel x:Name="RolePanel" Margin="0,6,0,0">
+                    <TextBlock Text="你是哪一边？" FontSize="14" FontWeight="SemiBold" Foreground="#FFEAEAF2"
+                               Margin="1,0,0,12" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="BtnHost" Grid.Column="0" Style="{StaticResource RoleCard}" Click="OnChooseHost">
+                            <StackPanel>
+                                <!-- 手柄宽扁、画笔对角饱满：显示尺寸 34/27 + 同 1.9 线宽做视觉等重；固定高容器保证两卡标题起点对齐 -->
+                                <Grid Height="34" Margin="0,0,0,10">
+                                    <Path Style="{StaticResource TbIcon}" Width="34" Height="34" StrokeThickness="1.9"
+                                          Data="{StaticResource GeoPad}" />
+                                </Grid>
+                                <TextBlock Text="我是主机" FontSize="14" FontWeight="SemiBold" Foreground="#FFEAEAF2" />
+                                <TextBlock Text="我在这台电脑上玩游戏" FontSize="11.5" Foreground="#FF9C9CB4"
+                                           Margin="0,5,0,0" />
+                                <Rectangle Height="1" Fill="#22FFFFFF" Margin="0,9,0,0" />
+                                <TextBlock Text="点击后：列出地址，发给朋友" FontSize="11" Foreground="#FF6E6E88"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnViewer" Grid.Column="2" Style="{StaticResource RoleCard}" Click="OnChooseViewer">
+                            <StackPanel>
+                                <Grid Height="34" Margin="0,0,0,10">
+                                    <Path Style="{StaticResource TbIcon}" Width="27" Height="27" StrokeThickness="1.9"
+                                          Data="{StaticResource GeoPen}" />
+                                </Grid>
+                                <TextBlock Text="我是观众" FontSize="14" FontWeight="SemiBold" Foreground="#FFEAEAF2" />
+                                <TextBlock Text="我在朋友的画面上画线指点" FontSize="11.5" Foreground="#FF9C9CB4"
+                                           Margin="0,5,0,0" />
+                                <Rectangle Height="1" Fill="#22FFFFFF" Margin="0,9,0,0" />
+                                <TextBlock Text="点击后：填入主机地址并连接" FontSize="11" Foreground="#FF6E6E88"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
                 </StackPanel>
 
                 <!-- 主机面板 -->
