@@ -53,7 +53,7 @@ jobs:
       # 只有真执行才暴露——构建产物 ≠ 可运行产物
       - name: 自测单文件产物
         shell: bash
-        run: "publish/single/ParsecDraw-$VERSION-x64.exe" --selftest
+        run: publish/single/ParsecDraw-$VERSION-x64.exe --selftest
 
       - name: 发布安装包载荷（自包含目录，安装后免解压、启动快）
         shell: bash
