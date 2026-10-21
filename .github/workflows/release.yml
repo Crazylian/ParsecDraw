@@ -60,6 +60,11 @@ jobs:
 
       - name: 构建 Setup
         shell: bash
+        # MSYS2_ARG_CONV_EXCL：禁止 Git Bash 把 /D 开关改写成路径
+        # （否则 /DMyAppVersion=x.y.z 被转成 C:/Program Files/Git/DMyAppVersion=...，
+        #  iscc 报 "more than one script filename"）
+        env:
+          MSYS2_ARG_CONV_EXCL: '*'
         run: iscc "/DMyAppVersion=$VERSION" installer/ParsecDraw.iss
 
       # 手动触发：产物挂到运行页，不发布
