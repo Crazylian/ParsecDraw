@@ -48,8 +48,9 @@ src/.../ParsecDraw.exe --smoke                         # 全链路冒烟（主�
 dotnet publish -c Release -r win-x64 --self-contained true \
   -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true \
   -p:IncludeNativeLibrariesForSelfExtract=true -o publish/self-contained
-                                                       # WPF 单文件必须带 IncludeNativeLibrariesForSelfExtract，
-                                                       # 否则原生库不进 bundle，启动即 DllNotFoundException
+                                                       # 自包含单文件必须带 IncludeNativeLibrariesForSelfExtract：原生库
+                                                       # 不进 bundle 会散落为 exe 旁的独立文件，缺了启动即 DllNotFoundException。
+                                                       # 框架依赖单文件不受影响（原生库由共享框架提供）
 python tools/make_icon.py                              # 重新生成图标
 python tools/make_cursor.py [pen|eraser]               # 重新生成光标
 git tag vX.Y.Z && git push origin vX.Y.Z               # 发版：CI 自动构建并发布 Release（单 exe + Setup）
