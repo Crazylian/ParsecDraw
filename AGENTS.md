@@ -23,6 +23,9 @@ src/ParsecDraw/
 ├── Session.cs              # 输入 ⇄ Store ⇄ 网络 中枢
 ├── Assets/                 # app.ico / pen.cur / eraser.cur（生成器在 tools/）
 └── SelfTest.cs             # 无头自测
+
+installer/ParsecDraw.iss         # Inno Setup 安装包脚本（CI 用）
+.github/workflows/release.yml    # 发版流水线（tag→Release；dispatch→仅构建）
 ```
 
 ## Coding Style
@@ -46,6 +49,7 @@ dotnet publish -c Release -r win-x64 --self-contained true \
   -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish/self-contained
 python tools/make_icon.py                              # 重新生成图标
 python tools/make_cursor.py [pen|eraser]               # 重新生成光标
+git tag vX.Y.Z && git push origin vX.Y.Z               # 发版：CI 自动构建并发布 Release（单 exe + Setup）
 ```
 
 UI 视觉改动必须真机截图核验（无头测试看不到渲染层）。

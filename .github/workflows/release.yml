@@ -1,0 +1,92 @@
+# 自动发布：推 v* 标签 → 构建 + 自测 + GitHub Release（单 exe + Setup）
+# workflow_dispatch → 只构建并上传产物，不发布（验证流水线用，无副作用）
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write # gh release create 需要
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: 构建（Release）
+        shell: bash
+        run: dotnet build -c Release src/ParsecDraw
+
+      # 无头自测：协议/状态机/对齐/网络/win32 互操作真实调用，失败即中止
+      - name: 无头自测
+        shell: bash
+        run: src/ParsecDraw/bin/Release/net10.0-windows/ParsecDraw.exe --selftest
+
+      # 版本号：tag 推送取自标签（v1.2.3 → 1.2.3），手动触发回落到 csproj
+      - name: 确定版本号
+        shell: bash
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_NAME" != v* ]]; then
+            v=$(grep -oPm1 '(?<=<Version>)[^<]+' src/ParsecDraw/ParsecDraw.csproj)
+          fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "版本: $v"
+
+      - name: 发布单文件绿色版
+        shell: bash
+        run: |
+          dotnet publish src/ParsecDraw -c Release -r win-x64 --self-contained true \
+            -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true \
+            -p:Version="$VERSION" -o publish/single
+          mv "publish/single/ParsecDraw.exe" "publish/single/ParsecDraw-$VERSION-x64.exe"
+
+      - name: 发布安装包载荷（自包含目录，安装后免解压、启动快）
+        shell: bash
+        run: dotnet publish src/ParsecDraw -c Release -r win-x64 --self-contained true \
+          -p:Version="$VERSION" -o publish/setup
+
+      - name: 安装 Inno Setup
+        shell: bash
+        run: choco install innosetup -y --no-progress
+
+      - name: 构建 Setup
+        shell: bash
+        run: iscc "/DMyAppVersion=$VERSION" installer/ParsecDraw.iss
+
+      # 手动触发：产物挂到运行页，不发布
+      - name: 上传构建产物（仅手动触发）
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ParsecDraw-v${{ env.VERSION }}
+          path: |
+            publish/single/ParsecDraw-*-x64.exe
+            installer/Output/ParsecDraw-Setup-*.exe
+          if-no-files-found: error
+
+      # 标签触发：从 CHANGELOG 抽取该版条目作为发布说明
+      - name: 发布 Release（仅标签触发）
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          awk -v ver="## v$VERSION" '
+            index($0, ver)==1 {f=1; next}
+            /^## / {f=0}
+            f' CHANGELOG.md | sed '/./,$!d' > release-notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$REPO" \
+            --title "v$VERSION" \
+            --notes-file release-notes.md \
+            "publish/single/ParsecDraw-$VERSION-x64.exe" \
+            "installer/Output/ParsecDraw-Setup-$VERSION.exe"
