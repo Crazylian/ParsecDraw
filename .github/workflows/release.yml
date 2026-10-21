@@ -14,9 +14,9 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.x'
 
@@ -50,8 +50,9 @@ jobs:
 
       - name: 发布安装包载荷（自包含目录，安装后免解压、启动快）
         shell: bash
-        run: dotnet publish src/ParsecDraw -c Release -r win-x64 --self-contained true \
-          -p:Version="$VERSION" -o publish/setup
+        run: |
+          dotnet publish src/ParsecDraw -c Release -r win-x64 --self-contained true \
+            -p:Version="$VERSION" -o publish/setup
 
       - name: 安装 Inno Setup
         shell: bash
