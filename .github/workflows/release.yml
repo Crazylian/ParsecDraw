@@ -45,8 +45,15 @@ jobs:
         run: |
           dotnet publish src/ParsecDraw -c Release -r win-x64 --self-contained true \
             -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:Version="$VERSION" -o publish/single
           mv "publish/single/ParsecDraw.exe" "publish/single/ParsecDraw-$VERSION-x64.exe"
+
+      # 门禁必须覆盖发布产物本身：单文件 exe 若缺原生库（WPF 经典坑），
+      # 只有真执行才暴露——构建产物 ≠ 可运行产物
+      - name: 自测单文件产物
+        shell: bash
+        run: "publish/single/ParsecDraw-$VERSION-x64.exe" --selftest
 
       - name: 发布安装包载荷（自包含目录，安装后免解压、启动快）
         shell: bash
