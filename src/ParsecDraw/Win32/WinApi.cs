@@ -122,9 +122,27 @@ internal static partial class WinApi
     [LibraryImport("user32.dll", EntryPoint = "WindowFromPoint")]
     private static partial IntPtr WindowFromPointNative(int x, int y);
 
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW")]
+    private static partial int GetWindowTextW(IntPtr hWnd, IntPtr lpString, int nMaxCount);
+
     /// <summary>OS 级命中测试：物理屏幕坐标处最顶层的可点击窗口（验证真实鼠标能否到达覆盖层）。</summary>
     public static IntPtr WindowFromScreenPoint(int x, int y)
         => WindowFromPointNative(x, y);
+
+    /// <summary>窗口标题（冒烟判定用）。LibraryImport 不支持 StringBuilder，走 IntPtr 缓冲。</summary>
+    public static string WindowTitle(IntPtr hWnd)
+    {
+        var p = System.Runtime.InteropServices.Marshal.AllocHGlobal(512);
+        try
+        {
+            _ = GetWindowTextW(hWnd, p, 256);
+            return System.Runtime.InteropServices.Marshal.PtrToStringUni(p) ?? "";
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.FreeHGlobal(p);
+        }
+    }
 
     /// <summary>向窗口客户区坐标 (x,y) 投递鼠标消息（msg=0x200 移动 / 0x201 左键按下 / 0x202 左键抬起）。</summary>
     public static void PostMouse(IntPtr hWnd, uint msg, int x, int y)

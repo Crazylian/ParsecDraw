@@ -237,6 +237,9 @@ public partial class ToolbarWindow : Window
         // 动画期间的合成事件不处理；绘画中（左键按住）不弹出——
         // 否则在屏幕顶部画线来回扫过把手，工具栏会不停弹出-缩入抖动
         if (_animating || !_docked || Mouse.LeftButton == MouseButtonState.Pressed) return;
+        // 光标必须真的在把手条区域内：折叠态窗口大半矩形在屏外，
+        // 光标远离时的幽灵 Enter（z 序拨动等来源）不得触发弹出
+        if (Mouse.GetPosition(this).Y < ActualHeight - DockPeek - 10) return;
         _docked = false;
         SlideTo(4);
     }
@@ -266,6 +269,20 @@ public partial class ToolbarWindow : Window
         anim.Completed += (_, _) => _animating = false;
         BeginAnimation(TopProperty, anim);
     }
+
+    // ---- 冒烟测试观测口 ----
+
+    /// <summary>折叠测试：贴边并缩入（模拟拖拽靠边后的状态）。</summary>
+    internal void SmokeDock()
+    {
+        Left = (SystemParameters.PrimaryScreenWidth - ActualWidth) / 2;
+        Top = 0;
+        _docked = true;
+        SlideTo(-(ActualHeight - DockPeek));
+    }
+
+    /// <summary>当前 Top（抖动监测：折叠态应为负值）。</summary>
+    internal double TopForSmoke => Top;
 
     // ---- 工具三选一 ----
 

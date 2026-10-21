@@ -75,6 +75,7 @@ public partial class App : Application
 
             Session? viewer = null;
             OverlayWindow? viewerOverlay = null;
+            ToolbarWindow? viewerToolbar = null;
             var hostInfoSeen = false;
             var modeEventSeen = false; // 初始化事件必须发（工具栏模式同步依赖它）
             var t2 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
@@ -94,6 +95,9 @@ public partial class App : Application
                 viewerOverlay = new OverlayWindow(viewer, isHost: false);
                 viewerOverlay.DrawModeChanged += _ => modeEventSeen = true;
                 viewerOverlay.Show();
+                // 观众工具栏：镜像真实装配，折叠后做抖动监测（远离光标的幽灵 Enter 不得弹出）
+                viewerToolbar = new ToolbarWindow(viewer, viewerOverlay, isHost: false);
+                viewerToolbar.Show();
                 result.Add($"viewer-overlay-up mode-event={modeEventSeen}");
             };
             t2.Start();
@@ -105,6 +109,8 @@ public partial class App : Application
             var hitOk = false;
             var drewOk = false;
             var erasedOk = false;
+            var flapMaxTop = double.MinValue; // 工具栏折叠抖动监测：全程最大 Top（弹起≈4，折叠≈-(H-12)）
+            DispatcherTimer? flapSampler = null;
             var t3 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
             t3.Tick += (_, _) =>
             {
@@ -114,12 +120,27 @@ public partial class App : Application
                 overlayForInput = viewerOverlay;
                 var h = viewerOverlay.HwndForSmoke;
                 result.Add($"pre-input draw-mode={viewerOverlay.DrawMode} hook={viewerOverlay.HotkeyHookActiveForSmoke}");
+
+                // 折叠工具栏 + 抖动采样（含模拟绘画风暴期间）
+                if (viewerToolbar is not null)
+                {
+                    viewerToolbar.SmokeDock();
+                    flapSampler = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) =>
+                    {
+                        if (viewerToolbar is not null)
+                            flapMaxTop = Math.Max(flapMaxTop, viewerToolbar.TopForSmoke);
+                    }, Dispatcher);
+                    flapSampler.Start();
+                }
                 // OS 级命中测试：真实鼠标点击能否落在覆盖层上（绘画态、非穿透时必须命中）
                 if (h != IntPtr.Zero)
                 {
-                    var hit = WinApi.WindowFromScreenPoint(700, 400);
-                    hitOk = hit == h;
-                    result.Add($"hit-test(700,400)={hit} overlay={h} -> {(hitOk ? "HIT" : "MISS")}");
+                    // 采样点选左下（60,800）：远离顶部工具栏带与中央控制窗，
+                    // 只应命中全屏覆盖层；冒烟里主机/观众两个覆盖层会争夺置顶，命中任一即算过
+                    var hit = WinApi.WindowFromScreenPoint(60, 800);
+                    var hitTitle = WinApi.WindowTitle(hit);
+                    hitOk = hit == h || hitTitle.Contains("ParsecDraw Overlay", StringComparison.Ordinal);
+                    result.Add($"hit-test(60,800)='{hitTitle}' -> {(hitOk ? "HIT" : "MISS")}");
                 }
                 if (h != IntPtr.Zero)
                 {
@@ -158,6 +179,8 @@ public partial class App : Application
             {
                 t.Stop();
                 result.Add($"host-info-received={hostInfoSeen}");
+                flapSampler?.Stop();
+                result.Add($"toolbar-flap-max-top={flapMaxTop:0.0} (折叠应≈-{(viewerToolbar?.ActualHeight ?? 0) - 12:0})");
                 if (overlayForInput is not null)
                     result.Add($"post-input draw-mode={overlayForInput.DrawMode} strokes={viewerForInput!.Store.Strokes.Count}");
                 if (viewerOverlay is not null)
@@ -179,7 +202,8 @@ public partial class App : Application
                               && overlayForInput.DrawMode == false // 热键后应处于观看态
                               && overlayForInput.HotkeyHookActiveForSmoke // LL 钩子装上了
                               && hitOk // OS 级命中：真实点击能落在覆盖层上
-                              && modeEventSeen; // 初始化事件已发（工具栏同步修复的回归防线）
+                              && modeEventSeen // 初始化事件已发（工具栏同步修复的回归防线）
+                              && flapMaxTop < -20; // 工具栏折叠态全程未被弹起（抖动修复的回归防线）
                 Shutdown(hostInfoSeen && mapOk && trayOk && inputOk ? 0 : 1);
             };
             t.Start();
