@@ -107,10 +107,12 @@ public partial class OverlayWindow : Window
     /// <summary>低级键盘钩子接管热键（RegisterHotKey 在 Parsec 捕获键盘时收不到）。</summary>
     private void RegisterHotkeys()
     {
-        _keys = new KeyboardHook();
-        if (!_keys.Active) return; // 极端失败：工具栏按钮仍可用
-        _keys.Hotkey += HandleHotkey;
+        // WndProc 挂钩必须在钩子成败判定之外：它同时承载全部鼠标绘制输入，
+        // 钩子装不上只应失去热键，绝不能连画笔一起废掉
         HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
+        _keys = new KeyboardHook();
+        if (!_keys.Active) return; // 极端失败：仅热键不可用，鼠标绘制与工具栏不受影响
+        _keys.Hotkey += HandleHotkey;
     }
 
     private void HandleHotkey(uint vk)
@@ -126,6 +128,9 @@ public partial class OverlayWindow : Window
                 break;
             case 0x50: // P
                 _session.TogglePinMode(); // 钉住模式开关：开启后新画的笔迹持久存在
+                break;
+            case 0x5A: // Z
+                _session.UndoMine();
                 break;
         }
     }

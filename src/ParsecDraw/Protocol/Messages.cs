@@ -71,16 +71,10 @@ public sealed record Settings
 public static class SettingsStore
 {
     public static string FilePath
-    {
-        get
-        {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "ParsecDraw");
-            Directory.CreateDirectory(dir);
-            return Path.Combine(dir, "settings.json");
-        }
-    }
+        => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "ParsecDraw",
+            "settings.json");
 
     public static Settings Load()
     {
@@ -98,7 +92,14 @@ public static class SettingsStore
 
     public static void Save(Settings s)
     {
-        try { File.WriteAllText(FilePath, JsonSerializer.Serialize(s, AppJsonContext.Default.Settings)); }
+        try
+        {
+            // 建目录只在写路径做（读路径不应有副作用）
+            var dir = Path.GetDirectoryName(FilePath);
+            if (dir is not null)
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(s, AppJsonContext.Default.Settings));
+        }
         catch { /* 保存失败不影响使用 */ }
     }
 }

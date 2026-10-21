@@ -193,7 +193,7 @@ public partial class ToolbarWindow : Window
         BtnExitDraw.Visibility = Visibility.Visible;
         BtnExitDraw.Content = drawing ? "完成" : "开始绘画";
         HintText.Text = drawing
-            ? "Ctrl+Alt+D / 右键 = 退出绘画态（穿透回 Parsec）；Ctrl+Alt+P 钉住模式（开=新笔迹保留），Ctrl+Alt+C 清空，Ctrl+Z 撤销"
+            ? "Ctrl+Alt+D / 右键 = 退出绘画态（穿透回 Parsec）；Ctrl+Alt+P 钉住模式（开=新笔迹保留），Ctrl+Alt+C 清空，Ctrl+Alt+Z 撤销"
             : "当前穿透：鼠标直接操作 Parsec 窗口。Ctrl+Alt+D 或点\"开始绘画\"进入绘画态";
     }
 

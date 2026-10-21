@@ -56,6 +56,7 @@ public sealed class Session : IDisposable
     private readonly List<double[]> _pending = new();
     private long _lastFlush;
     private const int FlushIntervalMs = 33;
+    private DispatcherTimer? _flushTimer; // 笔画进行中的定时冲刷：停笔不动也要把尾段点上屏
 
     public event Action<string>? Status;
     public event Action<int>? ViewerCount;
@@ -69,6 +70,9 @@ public sealed class Session : IDisposable
 
     public bool IsConnected => !Active || IsHost || _client?.State == ConnState.Connected;
     public bool HasActiveStroke => _active is not null;
+
+    /// <summary>主机端实际绑定端口（StartHost 传 0 时为随机分配值，冒烟用）。</summary>
+    public int HostPort => _server?.BoundPort ?? 0;
 
     // ---- 生命周期 ----
 
@@ -146,6 +150,10 @@ public sealed class Session : IDisposable
         _active = Store.GetById(id);
         _pending.Clear();
         _lastFlush = Environment.TickCount64;
+        // 33ms 定时冲刷：鼠标停住时 pending 里的点也要及时上屏/上网（触屏慢抬笔不丢尾巴）
+        _flushTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(FlushIntervalMs), DispatcherPriority.Background,
+            (_, _) => FlushPoints(Environment.TickCount64), _dispatcher);
+        _flushTimer.Start();
     }
 
     public void StrokeMove(Point normalized)
@@ -161,6 +169,7 @@ public sealed class Session : IDisposable
     {
         if (_active is null) return;
         FlushPoints(Environment.TickCount64);
+        _flushTimer?.Stop();
         var m = new Msg { T = MsgTypes.End, Id = _active.Id, Pin = pin ?? PinMode };
         Store.Apply(m);
         Send(m);

@@ -21,6 +21,10 @@ public sealed class DrawCanvas : FrameworkElement
     private static readonly Brush LabelBrush = MakeFrozen(Colors.White);
     private static readonly Brush LabelBg = MakeFrozen(Color.FromArgb(160, 0, 0, 0));
 
+    // 昵称标签缓存：按 (作者, DPI) 复用 FormattedText——渲染路径零分配红线
+    private readonly Dictionary<string, FormattedText> _labelCache = new();
+    private double _labelDpi;
+
     public DrawCanvas()
         => IsHitTestVisible = false;
 
@@ -83,6 +87,13 @@ public sealed class DrawCanvas : FrameworkElement
         var nowVisible = _store.Strokes;
         if (nowVisible.Count == 0) return;
 
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip; // 每帧取一次，DPI 变更时重建标签缓存
+        if (Math.Abs(dpi - _labelDpi) > 0.01)
+        {
+            _labelCache.Clear();
+            _labelDpi = dpi;
+        }
+
         foreach (var s in nowVisible)
         {
             var alpha = _store.OpacityOf(s);
@@ -102,14 +113,18 @@ public sealed class DrawCanvas : FrameworkElement
                 if (s.Points.Count > 0 && !s.Ended && !string.IsNullOrEmpty(s.Author))
                 {
                     var p0 = _store.ToScreen(s.Points[0]);
-                    var ft = new FormattedText(
-                        s.Author,
-                        CultureInfo.InvariantCulture,
-                        FlowDirection.LeftToRight,
-                        LabelTypeface,
-                        12,
-                        LabelBrush,
-                        VisualTreeHelper.GetDpi(this).PixelsPerDip);
+                    if (!_labelCache.TryGetValue(s.Author, out var ft))
+                    {
+                        ft = new FormattedText(
+                            s.Author,
+                            CultureInfo.InvariantCulture,
+                            FlowDirection.LeftToRight,
+                            LabelTypeface,
+                            12,
+                            LabelBrush,
+                            dpi);
+                        _labelCache[s.Author] = ft;
+                    }
                     dc.DrawRoundedRectangle(LabelBg, null, new Rect(p0.X + 5, p0.Y - 17, ft.Width + 7, ft.Height + 3), 3, 3);
                     dc.DrawText(ft, new Point(p0.X + 8, p0.Y - 15.5));
                 }

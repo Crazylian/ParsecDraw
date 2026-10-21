@@ -44,7 +44,7 @@ internal sealed partial class KeyboardHook : IDisposable
     }
 
     private static bool IsHotkey(uint vk)
-        => vk is 0x44 or 0x43 or 0x50 // D / C / P
+        => vk is 0x44 or 0x43 or 0x50 or 0x5A // D / C / P / Z
            && (Native.GetAsyncKeyState(0x11) & 0x8000) != 0  // Ctrl
            && (Native.GetAsyncKeyState(0x12) & 0x8000) != 0; // Alt
 

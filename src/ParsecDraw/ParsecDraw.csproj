@@ -9,7 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>ParsecDraw</RootNamespace>
     <AssemblyName>ParsecDraw</AssemblyName>
-    <Version>0.4.2</Version>
+    <Version>0.4.3</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- 不要开 InvariantGlobalization：WPF 文本输入在中文等非固定区域性的系统上
          获取输入法语言时会抛 CultureNotFoundException（TextBox 聚焦即崩） -->

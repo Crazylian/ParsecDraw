@@ -70,7 +70,7 @@ public partial class App : Application
 
             var w = new ControlWindow(minimizeToTray: false);
             w.Show();
-            w.Dispatcher.BeginInvoke(w.SmokeStartHost);
+            w.Dispatcher.BeginInvoke(() => w.SmokeStartHost()); // lambda 显式调用：方法组带默认参数时绑定不可靠
             result.Add("host-window-up");
 
             Session? viewer = null;
@@ -91,7 +91,8 @@ public partial class App : Application
                         result.Add($"host-info {hw:0}x{hh:0}");
                     }
                 };
-                viewer.StartViewer(Dispatcher, $"ws://127.0.0.1:{Session.DefaultPort}");
+                result.Add($"dbg-port={w.HostPort}");
+                viewer.StartViewer(Dispatcher, $"ws://127.0.0.1:{w.HostPort}");
                 viewerOverlay = new OverlayWindow(viewer, isHost: false);
                 viewerOverlay.DrawModeChanged += _ => modeEventSeen = true;
                 viewerOverlay.Show();
@@ -109,7 +110,8 @@ public partial class App : Application
             var hitOk = false;
             var drewOk = false;
             var erasedOk = false;
-            var flapMaxTop = double.MinValue; // 工具栏折叠抖动监测：全程最大 Top（弹起≈4，折叠≈-(H-12)）
+            var flapExpanded = false;   // 工具栏抖动监测：状态翻转计数（合法悬停=1 次弹出，抖动=反复横跳）
+            var flapTransitions = 0;
             DispatcherTimer? flapSampler = null;
             var t3 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
             t3.Tick += (_, _) =>
@@ -127,8 +129,15 @@ public partial class App : Application
                     viewerToolbar.SmokeDock();
                     flapSampler = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) =>
                     {
-                        if (viewerToolbar is not null)
-                            flapMaxTop = Math.Max(flapMaxTop, viewerToolbar.TopForSmoke);
+                        if (viewerToolbar is null) return;
+                        // Top > -25 视为弹出态（弹起=4，折叠≈-56）；统计翻转次数而非绝对位置——
+                        // 真实鼠标停在工具栏上是合法的单次弹出，抖动的本质是反复横跳
+                        var expandedNow = viewerToolbar.TopForSmoke > -25;
+                        if (expandedNow != flapExpanded)
+                        {
+                            flapExpanded = expandedNow;
+                            flapTransitions++;
+                        }
                     }, Dispatcher);
                     flapSampler.Start();
                 }
@@ -180,7 +189,7 @@ public partial class App : Application
                 t.Stop();
                 result.Add($"host-info-received={hostInfoSeen}");
                 flapSampler?.Stop();
-                result.Add($"toolbar-flap-max-top={flapMaxTop:0.0} (折叠应≈-{(viewerToolbar?.ActualHeight ?? 0) - 12:0})");
+                result.Add($"toolbar-flap-transitions={flapTransitions} (悬停弹出≤2 次翻转合法)");
                 if (overlayForInput is not null)
                     result.Add($"post-input draw-mode={overlayForInput.DrawMode} strokes={viewerForInput!.Store.Strokes.Count}");
                 if (viewerOverlay is not null)
@@ -203,7 +212,7 @@ public partial class App : Application
                               && overlayForInput.HotkeyHookActiveForSmoke // LL 钩子装上了
                               && hitOk // OS 级命中：真实点击能落在覆盖层上
                               && modeEventSeen // 初始化事件已发（工具栏同步修复的回归防线）
-                              && flapMaxTop < -20; // 工具栏折叠态全程未被弹起（抖动修复的回归防线）
+                              && flapTransitions <= 2; // 折叠工具栏未反复弹出-缩入（>2 次翻转=抖动）
                 Shutdown(hostInfoSeen && mapOk && trayOk && inputOk ? 0 : 1);
             };
             t.Start();

@@ -19,6 +19,7 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
     private OverlayWindow? _overlay;
     private ToolbarWindow? _toolbar;
     private DispatcherTimer? _zOrderTimer;
+    private DispatcherTimer? _saveDebounce;
     private H.NotifyIcon.TaskbarIcon? _tray;
 
     private int _sessionPort = Session.DefaultPort;
@@ -172,8 +173,26 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
         ShowSessionWindows(isHost: true);
     }
 
-    /// <summary>冒烟测试用：等价于点下"我是主机"。</summary>
-    internal void SmokeStartHost() => OnChooseHost(this, new RoutedEventArgs());
+    /// <summary>冒烟测试用：等价于点下"我是主机"（随机端口，避开用户可能开着的主实例）。</summary>
+    internal void SmokeStartHost(int port = 0)
+    {
+        RolePanel.Visibility = Visibility.Collapsed;
+        HostPanel.Visibility = Visibility.Visible;
+        IpList.Items.Clear();
+        _session.StartHost(Dispatcher, port);
+        SmokeHostStarted = true;
+        _hostLine = "等待观众…";
+        ShowSessionWindows(isHost: true);
+    }
+
+    /// <summary>主机端实际绑定端口（冒烟用，port=0 时为随机值）。</summary>
+    internal int HostPort => _session.HostPort;
+
+    /// <summary>冒烟观测：SmokeStartHost 是否执行到位。</summary>
+    internal bool SmokeHostStarted { get; private set; }
+
+    /// <summary>冒烟观测：会话是否激活。</summary>
+    internal bool SessionActiveForSmoke => _session.Active;
 
     private void OnChooseViewer(object sender, RoutedEventArgs e)
     {
@@ -263,7 +282,14 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    private void OnSettingChanged(object sender, TextChangedEventArgs e) => SaveSettings();
+    private void OnSettingChanged(object sender, TextChangedEventArgs e)
+    {
+        // 400ms 防抖：别每敲一个键就同步写盘
+        _saveDebounce ??= new DispatcherTimer(TimeSpan.FromMilliseconds(400), DispatcherPriority.Background,
+            (_, _) => { _saveDebounce!.Stop(); SaveSettings(); }, Dispatcher);
+        _saveDebounce.Stop();
+        _saveDebounce.Start();
+    }
 
     private void SaveSettings()
     {

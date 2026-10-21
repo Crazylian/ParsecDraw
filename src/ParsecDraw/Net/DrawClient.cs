@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -88,17 +89,31 @@ public sealed class DrawClient : IAsyncDisposable
                 SetState(ConnState.Connected);
 
                 var buffer = new byte[64 * 1024];
+                var msgBuf = new MemoryStream();
                 while (ws.State == WebSocketState.Open && !ct.IsCancellationRequested)
                 {
-                    var r = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
+                    // 一条消息可能分多帧到达：累积到 EndOfMessage 再解析（超 256KB 断开重连）
+                    msgBuf.SetLength(0);
+                    WebSocketReceiveResult r;
+                    do
+                    {
+                        r = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
+                        if (r.MessageType == WebSocketMessageType.Close)
+                            break;
+                        if (r.Count > 0)
+                            msgBuf.Write(buffer, 0, r.Count);
+                        if (msgBuf.Length > 256 * 1024)
+                            break;
+                    }
+                    while (!r.EndOfMessage);
                     if (r.MessageType == WebSocketMessageType.Close)
                         break;
-                    if (r.Count == 0)
+                    if (msgBuf.Length == 0)
                         continue;
                     Msg? msg;
                     try
                     {
-                        msg = JsonSerializer.Deserialize(Encoding.UTF8.GetString(buffer, 0, r.Count), AppJsonContext.Default.Msg);
+                        msg = JsonSerializer.Deserialize(Encoding.UTF8.GetString(msgBuf.GetBuffer(), 0, (int)msgBuf.Length), AppJsonContext.Default.Msg);
                     }
                     catch (JsonException)
                     {

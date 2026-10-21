@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
@@ -143,18 +144,30 @@ public sealed class DrawServer : IAsyncDisposable
                 _ = SendAsync(client, Encode(new Msg { T = MsgTypes.Host, W = _hostW, H = _hostH }));
 
             var buffer = new byte[64 * 1024];
+            var msgBuf = new MemoryStream();
             while (!ct.IsCancellationRequested && client.Socket.State == WebSocketState.Open)
             {
-                var result = await client.Socket.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
-                if (result.MessageType == WebSocketMessageType.Close)
-                    break;
-                if (result.Count == 0)
+                // 一条消息可能分多帧到达：累积到 EndOfMessage 再解析（超 256KB 判异常直接断开）
+                msgBuf.SetLength(0);
+                WebSocketReceiveResult result;
+                do
+                {
+                    result = await client.Socket.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                        return;
+                    if (result.Count > 0)
+                        msgBuf.Write(buffer, 0, result.Count);
+                    if (msgBuf.Length > 256 * 1024)
+                        return; // 超限：恶意或异常客户端，直接断
+                }
+                while (!result.EndOfMessage);
+                if (msgBuf.Length == 0)
                     continue;
 
                 Msg? msg;
                 try
                 {
-                    msg = JsonSerializer.Deserialize(Encoding.UTF8.GetString(buffer, 0, result.Count), AppJsonContext.Default.Msg);
+                    msg = JsonSerializer.Deserialize(Encoding.UTF8.GetString(msgBuf.GetBuffer(), 0, (int)msgBuf.Length), AppJsonContext.Default.Msg);
                 }
                 catch (JsonException)
                 {
@@ -163,11 +176,15 @@ public sealed class DrawServer : IAsyncDisposable
                 if (msg is null || msg.T.Length == 0)
                     continue;
 
-                // 权限校验：只能撤销自己 begun 的笔迹；host 信息只允许服务器下发
+                // 权限校验：笔迹类操作（point/end/undo）只能动自己 begun 的；host 信息只允许服务器下发
                 switch (msg.T)
                 {
                     case MsgTypes.Begin when msg.Id is not null:
                         client.OwnStrokes.Add(msg.Id);
+                        break;
+                    case MsgTypes.Point or MsgTypes.End:
+                        if (msg.Id is null || !client.OwnStrokes.Contains(msg.Id))
+                            continue; // 不是你的笔迹，丢弃
                         break;
                     case MsgTypes.Undo:
                         if (msg.Id is null || !client.OwnStrokes.Remove(msg.Id))
