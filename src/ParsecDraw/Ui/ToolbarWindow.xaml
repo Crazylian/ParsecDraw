@@ -76,15 +76,8 @@
 
             <Rectangle x:Name="SepActions" Style="{StaticResource TbSep}" />
 
-            <!-- 观众端：绘画态=完成(勾) / 观看态=开始绘画(三角) -->
-            <Button x:Name="BtnExitDraw" Style="{StaticResource TbDoneBtn}" Click="OnExitDraw"
-                    ToolTip="完成绘画，回到观看（Ctrl+Alt+D / 右键）">
-                <Path x:Name="DoneIcon" Style="{StaticResource TbIcon}" StrokeThickness="1.6"
-                      Data="{StaticResource GeoCheck}" />
-            </Button>
-
             <!-- 帮助：热键速查（悬停显示，替代原底部提示行） -->
-            <Button x:Name="BtnHelp" Style="{StaticResource TbToolBtn}" Width="28" Height="28" Margin="4,0,0,0"
+            <Button x:Name="BtnHelp" Style="{StaticResource TbToolBtn}" Width="28" Height="28"
                     Foreground="#FF8A8AA2" ToolTip="快捷键">
                 <Path Style="{StaticResource TbIcon}" Width="14" Height="14" Data="{StaticResource GeoHelp}" />
             </Button>

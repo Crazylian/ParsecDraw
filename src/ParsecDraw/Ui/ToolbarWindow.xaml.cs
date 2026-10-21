@@ -79,7 +79,6 @@ public partial class ToolbarWindow : Window
             SepWidths.Visibility = Visibility.Collapsed;
             BtnUndo.Visibility = Visibility.Collapsed;
             SepActions.Visibility = Visibility.Collapsed;
-            BtnExitDraw.Visibility = Visibility.Collapsed;
             BtnToggle.Visibility = Visibility.Visible;
             BtnHelp.ToolTip = "覆盖层已点击穿透，不影响游戏。\nCtrl+Alt+D 暂停/显示笔迹 · Ctrl+Alt+P 钉住模式 · Ctrl+Alt+C 清空";
             _overlay.Visibility = Visibility.Visible;
@@ -220,13 +219,9 @@ public partial class ToolbarWindow : Window
         var c = drawing ? ModeGreen : ModeBlue;
         ModeDot.Fill = c;
         ModeGlow.Fill = c;
-        // 完成键：绘画态=勾（完成）；观看态=三角（开始绘画，填充更醒目）
-        DoneIcon.Data = (StreamGeometry)FindResource(drawing ? "GeoCheck" : "GeoPlay");
-        DoneIcon.Fill = drawing ? Brushes.Transparent : InkDark;
-        BtnExitDraw.ToolTip = drawing ? "完成绘画，回到观看（Ctrl+Alt+D / 右键）" : "开始绘画（Ctrl+Alt+D）";
         BtnHelp.ToolTip = drawing
             ? "绘画中：鼠标直接画线\n右键 / Ctrl+Alt+D = 退出绘画（穿透回 Parsec）\nCtrl+Alt+P 钉住 · Ctrl+Alt+Z 撤销 · Ctrl+Alt+C 清空"
-            : "观看中：鼠标直通 Parsec 窗口\nCtrl+Alt+D 或点右侧蓝色按钮开始绘画";
+            : "观看中：鼠标直通 Parsec 窗口\n点画笔/激光/橡皮任意工具开始绘画";
     }
 
     public void ReassertAboveOverlay()
@@ -327,6 +322,9 @@ public partial class ToolbarWindow : Window
     private void SetTool(ToolKind kind)
     {
         _session.Tool = kind;
+        // 点绘画工具即进入绘画态（没有独立"开始绘画"钮，观看→绘画一步直达）
+        if (!_overlay.DrawMode)
+            _overlay.SetDrawMode(true);
         ToolVisual(BtnPen, kind == ToolKind.Pen);
         ToolVisual(BtnLaser, kind == ToolKind.Laser);
         ToolVisual(BtnEraser, kind == ToolKind.Eraser);
@@ -353,13 +351,5 @@ public partial class ToolbarWindow : Window
         _paused = !_paused;
         ToggleIcon.Data = (StreamGeometry)FindResource(_paused ? "GeoEye" : "GeoPause");
         BtnToggle.ToolTip = _paused ? "恢复显示笔迹" : "暂停显示笔迹（Ctrl+Alt+D）";
-    }
-
-    private void OnExitDraw(object sender, RoutedEventArgs e)
-    {
-        if (_overlay.DrawMode)
-            _overlay.SetDrawMode(false);
-        else
-            _overlay.SetDrawMode(true);
     }
 }
