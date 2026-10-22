@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using ParsecDraw.Net;
 using ParsecDraw.Protocol;
 using ParsecDraw.Win32;
 
@@ -16,6 +17,8 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
     private readonly Session _session = new();
     private readonly Settings _settings = SettingsStore.Load();
     private readonly bool _minimizeToTray;
+    private readonly DiscoveryScanner _scanner = new(); // 生命周期跟观众面板（响应器在 Session，刻意不对称）
+    private bool _scanDone; // 本轮扫描窗口是否已结束（结束后"发现 N 台"文案不再刷新）
     private OverlayWindow? _overlay;
     private ToolbarWindow? _toolbar;
     private DispatcherTimer? _zOrderTimer;
@@ -35,9 +38,28 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
         _minimizeToTray = minimizeToTray;
         UrlBox.Text = _settings.Url;
         NameBox.Text = _settings.Name;
+        HostNameBox.Text = string.IsNullOrWhiteSpace(_settings.HostName)
+            ? Environment.MachineName : _settings.HostName.Trim(); // TextChanged 会同步进 _session.HostName
         _session.ColorHex = _settings.Color;
         _session.BaseWidth = _settings.Width;
         _session.ShowAllStrokes = _settings.ShowAll;
+
+        _scanner.HostFound += (a, ep) => Dispatcher.BeginInvoke(() =>
+        {
+            HostList.Items.Add(new ListViewItem
+            {
+                Content = $"{a.Name}（{ep.Address}）", // 同名不同 IP 各成一行，IP 是区分依据
+                Tag = $"ws://{ep.Address}:{a.Port}",   // 点行直连的完整地址
+            });
+            if (!_scanDone)
+                ScanStatus.Text = $"发现 {HostList.Items.Count} 台，点击直接连接";
+        });
+        _scanner.Completed += () => Dispatcher.BeginInvoke(() =>
+        {
+            _scanDone = true;
+            if (HostList.Items.Count == 0)
+                ScanStatus.Text = "未发现主机：确认对方已启动且在同一网络，或手动输入地址";
+        });
 
         _session.ViewerCount += n => Dispatcher.BeginInvoke(() =>
         {
@@ -130,6 +152,7 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        _scanner.Dispose();
         if (_exitHandled)
             Application.Current.Shutdown(); // ShutdownMode=OnExplicitShutdown
     }
@@ -200,23 +223,59 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
         ViewerPanel.Visibility = Visibility.Visible;
         if (string.IsNullOrWhiteSpace(UrlBox.Text))
             UrlBox.Text = $"ws://192.168.1.10:{Session.DefaultPort}";
+        StartDiscoveryScan(); // 每次进面板都重扫：上一轮结果可能过期
     }
 
-    private void OnConnect(object sender, RoutedEventArgs e)
+    /// <summary>发起观众连接（手动输入与发现列表点击共用路径）。</summary>
+    private void ConnectTo(string urlText)
     {
         if (_session.Active) return;
-        var url = UrlBox.Text.Trim();
+        var url = urlText.Trim();
         if (url.Length == 0) return;
         if (!url.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) &&
             !url.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
             url = "ws://" + url;
 
+        _scanner.Cancel(); // 连接目标已定，停掉在飞的扫描
         _session.DisplayName = string.IsNullOrWhiteSpace(NameBox.Text) ? "观众" : NameBox.Text.Trim();
         SaveSettings();
 
         ViewerStatus.Text = "连接中…";
         _session.StartViewer(Dispatcher, url);
         ShowSessionWindows(isHost: false);
+    }
+
+    private void OnConnect(object sender, RoutedEventArgs e) => ConnectTo(UrlBox.Text);
+
+    // ---- 局域网发现 ----
+
+    /// <summary>触发一轮扫描（进面板/重新扫描共用）：清列表、重置文案。Scan 自身会顶替在飞的上一轮。</summary>
+    private void StartDiscoveryScan()
+    {
+        _scanDone = false;
+        HostList.Items.Clear(); // 移除选中项会触发 SelectionChanged，OnHostPicked 的空选守卫直接放行
+        ScanStatus.Text = "正在扫描局域网…";
+        _scanner.Scan();
+    }
+
+    private void OnHostPicked(object sender, SelectionChangedEventArgs e)
+    {
+        // 点列表行 = 直接连接；守卫语义与"连接"按钮一致（会话进行中不响应）
+        if (HostList.SelectedItem is ListViewItem { Tag: string url } && !_session.Active)
+        {
+            UrlBox.Text = url; // 回填地址框：连接对象可见、随设置保存
+            ConnectTo(url);
+        }
+    }
+
+    private void OnRescan(object sender, RoutedEventArgs e) => StartDiscoveryScan();
+
+    private void OnHostNameChanged(object sender, TextChangedEventArgs e)
+    {
+        // 即时同步给 Session（发现应答每次现取，改名下一包生效）；防抖只管落盘
+        var n = HostNameBox.Text.Trim();
+        _session.HostName = n.Length > 0 ? n : Environment.MachineName;
+        OnSettingChanged(sender, e);
     }
 
     private async void OnStopSession(object sender, RoutedEventArgs e)
@@ -232,6 +291,7 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
 
     private async Task TeardownSessionAsync()
     {
+        _scanner.Cancel();
         _zOrderTimer?.Stop();
         _zOrderTimer = null;
         _toolbar?.Close();
@@ -294,10 +354,12 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
     private void SaveSettings()
     {
         var name = NameBox.Text.Trim();
+        var hostName = HostNameBox.Text.Trim();
         SettingsStore.Save(new Settings
         {
             Url = UrlBox.Text.Trim(),
             Name = name.Length > 0 ? name : "观众",
+            HostName = hostName.Length > 0 ? hostName : Environment.MachineName,
             Color = _session.ColorHex,
             Width = _session.BaseWidth,
             ShowAll = _session.ShowAllStrokes,

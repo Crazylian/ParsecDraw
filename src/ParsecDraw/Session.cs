@@ -15,7 +15,8 @@ namespace ParsecDraw;
 /// </summary>
 public sealed class Session : IDisposable
 {
-    public const int DefaultPort = 8765;
+    /// <summary>默认端口：大号段避开常见 WebSocket 工具占用，且不进 49152+ 临时端口区（监听端口会与出站源端口互抢）。含旧号 8765 后缀好记。</summary>
+    public const int DefaultPort = 38765;
 
     public StrokeStore Store { get; } = new();
 
@@ -26,6 +27,9 @@ public sealed class Session : IDisposable
     public string ClientId { get; } = Guid.NewGuid().ToString("N")[..4];
 
     public string DisplayName { get; set; } = "观众";
+
+    /// <summary>主机名：发现应答展示用（默认电脑名，面板可改），与观众昵称 <see cref="DisplayName"/> 是两个概念。响应器每次应答现取，改动即时生效。</summary>
+    public string HostName { get; set; } = Environment.MachineName;
     public string ColorHex { get; set; } = "#FF4757";
     public double BaseWidth { get; set; } = 6;
     public ToolKind Tool { get; set; } = ToolKind.Pen;
@@ -49,6 +53,7 @@ public sealed class Session : IDisposable
 
     private DrawServer? _server;
     private DrawClient? _client;
+    private DiscoveryResponder? _discovery; // 发现响应器：生命周期严格随主机会话（观众侧扫描器在 ControlWindow，刻意不对称）
     private Dispatcher _dispatcher = null!;
 
     private int _seq;
@@ -91,6 +96,26 @@ public sealed class Session : IDisposable
         _server.SetHostScreen(sw, sh); // 新观众接入时单播，用于对齐补偿
         _server.Start(port);
         Status?.Invoke($"主机就绪，端口 {port}，等待观众…");
+        StartDiscovery(); // 放在状态行之后：端口被占的降级提示要留在最后，不被"主机就绪"覆盖
+    }
+
+    /// <summary>挂发现响应器：绑定失败只降级提示（手动连接不受影响），绝不让主机启动失败。</summary>
+    private void StartDiscovery()
+    {
+        var d = new DiscoveryResponder();
+        // 每次应答现取：HostName 改动下一包生效；取 BoundPort 而非 port 参数——port=0 冒烟路径通告的也是真实端口
+        if (!d.Start(Discovery.Port, () => new DiscoveryAnswer
+        {
+            Magic = Discovery.AnswerMagic,
+            Name = HostName,
+            Port = _server!.BoundPort,
+        }))
+        {
+            d.Dispose(); // 绑定失败不留半死对象
+            Status?.Invoke("局域网自动发现不可用（UDP 38766 被占用），观众仍可手动输入地址连接");
+            return;
+        }
+        _discovery = d;
     }
 
     public void StartViewer(Dispatcher dispatcher, string url)
@@ -111,6 +136,12 @@ public sealed class Session : IDisposable
         if (!Active) return;
         Active = false;
         EndStrokeIfActive();
+        if (_discovery is not null)
+        {
+            // 先停应答再停 WS：避免向将死的 WS 端口引流
+            _discovery.Stop();
+            _discovery = null;
+        }
         if (_server is not null)
         {
             await _server.StopAsync().ConfigureAwait(true);

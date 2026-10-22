@@ -1,4 +1,6 @@
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using ParsecDraw.Draw;
@@ -304,6 +306,82 @@ public static class SelfTest
         catch (Exception ex)
         {
             Check(false, "net loopback threw: " + ex);
+        }
+
+        // ---- 3b. 局域网发现（真实 UDP 回环；responder 随机端口 + scanner 单播，不碰真实发现端口） ----
+        try
+        {
+            // 应答负载序列化往返：中文名与端口字段完整
+            var ansJson = JsonSerializer.Serialize(
+                new DiscoveryAnswer { Magic = Discovery.AnswerMagic, Name = "测试主机", Port = 49999 },
+                AppJsonContext.Default.DiscoveryAnswer);
+            var ansBack = JsonSerializer.Deserialize(ansJson, AppJsonContext.Default.DiscoveryAnswer);
+            Check(ansBack is { Name: "测试主机", Port: 49999 }, "discovery: answer roundtrip");
+
+            var hostName = "测试主机";
+            using var responder = new DiscoveryResponder();
+            Check(responder.Start(0, () => new DiscoveryAnswer
+                  { Magic = Discovery.AnswerMagic, Name = hostName, Port = 49999 })
+                  && responder.BoundPort > 0,
+                "discovery: responder on random port");
+
+            using var scanner = new DiscoveryScanner();
+            var found = NewTcs<IPEndPoint>();
+            DiscoveryAnswer? foundAns = null;
+            scanner.HostFound += (a, ep) => { foundAns = a; found.TrySetResult(ep); };
+            var completed = NewTcs<bool>();
+            scanner.Completed += () => completed.TrySetResult(true);
+
+            var target = new IPEndPoint(IPAddress.Loopback, responder.BoundPort);
+            scanner.Scan(target, TimeSpan.FromSeconds(3));
+            var gotFound = await Wait(found.Task, 4000).ConfigureAwait(false);
+            Check(gotFound, "discovery: probe -> answer");
+            if (gotFound)
+                Check(foundAns is { Name: "测试主机", Port: 49999 }
+                      && (await found.Task).Port == responder.BoundPort,
+                    "discovery: answer fields + source endpoint");
+            Check(await Wait(completed.Task, 4500).ConfigureAwait(false), "discovery: window completes");
+
+            // 改名即时生效：应答每次现取，无需重启响应器
+            var renamed = NewTcs<bool>();
+            scanner.HostFound += (a, _) => { if (a.Name == "新名字") renamed.TrySetResult(true); };
+            hostName = "新名字";
+            scanner.Scan(target, TimeSpan.FromSeconds(3));
+            Check(await Wait(renamed.Task, 4000).ConfigureAwait(false), "discovery: rename takes effect immediately");
+
+            // 错误 magic 的探测不得换来应答（1s 内裸 socket 收不到任何包）
+            using (var raw = new UdpClient(0))
+            {
+                await raw.SendAsync(Encoding.ASCII.GetBytes("NOTPARSEC"), 8, target).ConfigureAwait(false);
+                Check(!await Wait(raw.ReceiveAsync(), 1000).ConfigureAwait(false), "discovery: wrong probe magic ignored");
+            }
+
+            // 假主机回错误 magic 的应答：扫描器不得上报
+            using (var fakeHost = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0)))
+            {
+                var fakePort = ((IPEndPoint)fakeHost.Client.LocalEndPoint!).Port;
+                _ = Task.Run(async () =>
+                {
+                    var r = await fakeHost.ReceiveAsync().ConfigureAwait(false);
+                    var bad = Encoding.UTF8.GetBytes("{\"magic\":\"WRONG\",\"name\":\"假主机\",\"port\":1}");
+                    await fakeHost.SendAsync(bad, bad.Length, r.RemoteEndPoint).ConfigureAwait(false);
+                });
+                var fooled = NewTcs<bool>();
+                scanner.HostFound += (a, _) => { if (a.Name == "假主机") fooled.TrySetResult(true); };
+                scanner.Scan(new IPEndPoint(IPAddress.Loopback, fakePort), TimeSpan.FromSeconds(1));
+                Check(!await Wait(fooled.Task, 2000).ConfigureAwait(false), "discovery: wrong answer magic ignored");
+            }
+
+            // 响应器停止后不再应答（生命周期严格随主机会话）
+            responder.Stop();
+            var afterStop = NewTcs<bool>();
+            scanner.HostFound += (a, _) => { if (a.Name == "新名字") afterStop.TrySetResult(true); };
+            scanner.Scan(target, TimeSpan.FromSeconds(1));
+            Check(!await Wait(afterStop.Task, 2000).ConfigureAwait(false), "discovery: no answer after stop");
+        }
+        catch (Exception ex)
+        {
+            Check(false, "discovery threw: " + ex);
         }
 
         sb.AppendLine();

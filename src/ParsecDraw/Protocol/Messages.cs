@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ParsecDraw.Net;
 
 namespace ParsecDraw.Protocol;
 
@@ -62,7 +63,12 @@ public static class MsgTypes
 public sealed record Settings
 {
     [JsonPropertyName("url")] public string Url { get; init; } = "";
+
+    /// <summary>观众昵称。</summary>
     [JsonPropertyName("name")] public string Name { get; init; } = "观众";
+
+    /// <summary>主机名（发现列表展示用）。空 = 未设置，消费方兜底电脑名；与观众昵称是两个概念。</summary>
+    [JsonPropertyName("hostName")] public string HostName { get; init; } = "";
     [JsonPropertyName("color")] public string Color { get; init; } = "#FF4757";
     [JsonPropertyName("width")] public double Width { get; init; } = 6;
     [JsonPropertyName("showAll")] public bool ShowAll { get; init; } = false;
@@ -110,4 +116,5 @@ public static class SettingsStore
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(Msg))]
 [JsonSerializable(typeof(Settings))]
+[JsonSerializable(typeof(Net.DiscoveryAnswer))]
 internal sealed partial class AppJsonContext : JsonSerializerContext;

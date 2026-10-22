@@ -65,6 +65,15 @@
 
                 <!-- 主机面板 -->
                 <StackPanel x:Name="HostPanel" Visibility="Collapsed">
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="主机名" Style="{StaticResource DimText}" VerticalAlignment="Center" />
+                        <ui:TextBox x:Name="HostNameBox" Grid.Column="1" TextChanged="OnHostNameChanged"
+                                    PlaceholderText="观众发现列表里显示的名字（默认电脑名）" />
+                    </Grid>
                     <TextBlock Style="{StaticResource DimText}" Margin="1,0,0,6" Text="把下面的地址发给观众（点击行复制）：" />
                     <ui:ListView x:Name="IpList" MaxHeight="130" FontSize="13"
                                  SelectionChanged="OnIpSelected" />
@@ -84,8 +93,24 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="地址" Style="{StaticResource DimText}" VerticalAlignment="Center" />
                         <ui:TextBox x:Name="UrlBox" Grid.Column="1" TextChanged="OnSettingChanged"
-                                    PlaceholderText="ws://192.168.1.10:8765" />
+                                    PlaceholderText="ws://192.168.1.10:38765" />
                     </Grid>
+                    <!-- 局域网发现：进面板自动扫一轮，点行直连；AP 隔离等扫描不到时回退手动输地址 -->
+                    <StackPanel Margin="0,0,0,10">
+                        <TextBlock Text="局域网主机" Style="{StaticResource DimText}" Margin="1,0,0,4" />
+                        <ui:ListView x:Name="HostList" MaxHeight="130" FontSize="13"
+                                     SelectionChanged="OnHostPicked" />
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="ScanStatus" Style="{StaticResource DimText}" FontSize="11.5"
+                                       VerticalAlignment="Center" TextWrapping="Wrap" Text="" />
+                            <ui:Button Grid.Column="1" Appearance="Secondary" Padding="10,4" Margin="8,0,0,0"
+                                       VerticalAlignment="Center" Content="重新扫描" Click="OnRescan" />
+                        </Grid>
+                    </StackPanel>
                     <Grid Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="64" />
