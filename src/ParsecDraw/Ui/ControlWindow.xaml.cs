@@ -46,7 +46,10 @@ public partial class ControlWindow : Wpf.Ui.Controls.FluentWindow
 
         _scanner.HostFound += (a, ep) => Dispatcher.BeginInvoke(() =>
         {
-            HostList.Items.Add(new ListViewItem
+            // 必须 Wpf.Ui 的 ListViewItem：字典里没有系统 ListViewItem 的隐式样式，
+            // 落回系统主题默认样式的行背景不可命中——点击选不中、SelectionChanged 不触发，
+            // 表现为"点发现的主机没反应"（IpList 放字符串由 ui:ListView 生成 Wpf.Ui 容器，无此问题）
+            HostList.Items.Add(new Wpf.Ui.Controls.ListViewItem
             {
                 Content = $"{a.Name}（{ep.Address}）", // 同名不同 IP 各成一行，IP 是区分依据
                 Tag = $"ws://{ep.Address}:{a.Port}",   // 点行直连的完整地址
